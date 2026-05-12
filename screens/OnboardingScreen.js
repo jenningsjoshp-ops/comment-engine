@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Alert,
 } from 'react-native';
 import { APIFY_API_TOKEN, ANTHROPIC_API_KEY } from '../config';
 
@@ -92,6 +93,10 @@ export default function OnboardingScreen({ onComplete }) {
 
   const getSliders = () =>
     accountType === 'creator' ? CREATOR_SLIDERS : BUSINESS_SLIDERS;
+
+  const isValidEmail = (e) => {
+    return e.includes('@') && e.includes('.') && e.indexOf('@') < e.lastIndexOf('.');
+  };
 
   const fetchIgProfile = async () => {
     if (!igHandle.trim()) return;
@@ -211,6 +216,10 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
   };
 
   const handleComplete = () => {
+    if (!isValidEmail(email)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
     onComplete({
       accountType,
       igHandle: igData?.handle || igHandle,
@@ -328,7 +337,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
             </Text>
             {urls.map((url, index) => (
               <TextInput
-                key={index}
+                key={'url-' + index}
                 style={styles.input}
                 placeholder="https://yoursite.com"
                 placeholderTextColor="#666"
@@ -380,7 +389,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
                 <View style={styles.sliderDots}>
                   {SLIDER_STEPS.map((val) => (
                     <TouchableOpacity
-                      key={val}
+                      key={slider.id + '-' + val}
                       style={[styles.dot, (sliderValues[slider.id] || 3) === val && styles.dotSelected]}
                       onPress={() => setSlider(slider.id, val)}
                     >
@@ -464,9 +473,9 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
               keyboardType="email-address"
             />
             <TouchableOpacity
-              style={[styles.button, (!name || !email) && styles.buttonDisabled]}
+              style={[styles.button, (!name || !isValidEmail(email)) && styles.buttonDisabled]}
               onPress={handleComplete}
-              disabled={!name || !email}
+              disabled={!name || !isValidEmail(email)}
             >
               <Text style={styles.buttonText}>Start Using CommentEngine</Text>
             </TouchableOpacity>
@@ -484,7 +493,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
         <View style={styles.progress}>
           {[1, 2, 3, 4, 5, 6].map((s) => (
             <View
-              key={s}
+              key={'step-' + s}
               style={[styles.progressDot, step >= s && styles.progressDotActive]}
             />
           ))}
