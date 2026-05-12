@@ -81,16 +81,17 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
       sliderValues,
       name,
       email,
-      igHandle,
+      igHandle: igHandle.replace('@', ''),
       referenceUrls: urlContents,
     });
-    Alert.alert('Saved', 'Your settings have been updated.');
+
+    navigation.goBack();
   };
 
   const handleUpgrade = (newTier) => {
     Alert.alert(
       `Upgrade to ${TIER_INFO[newTier].name}`,
-      `${TIER_INFO[newTier].price} - ${TIER_INFO[newTier].limit}\n\nPayment integration coming soon. For now, your tier has been updated.`,
+      `${TIER_INFO[newTier].price} — ${TIER_INFO[newTier].limit}\n\nPayment integration coming soon. For now, your tier has been updated.`,
       [
         {
           text: 'Upgrade',
@@ -125,9 +126,8 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
               style={styles.upgradeButton}
               onPress={() => handleUpgrade('growth')}
             >
-              <Text style={styles.upgradeButtonText}>
-                Upgrade to Growth - $15/mo (150 comments)
-              </Text>
+              <Text style={styles.upgradeName}>Growth</Text>
+              <Text style={styles.upgradeDetail}>$15/mo — 150 comments/month</Text>
             </TouchableOpacity>
           )}
           {(tier === 'starter' || tier === 'growth') && (
@@ -135,9 +135,8 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
               style={[styles.upgradeButton, styles.upgradeButtonPremium]}
               onPress={() => handleUpgrade('business')}
             >
-              <Text style={styles.upgradeButtonText}>
-                Upgrade to Business - $50/mo (500 comments)
-              </Text>
+              <Text style={styles.upgradeName}>Business</Text>
+              <Text style={styles.upgradeDetail}>$50/mo — 500 comments/month</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -164,13 +163,16 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
       />
 
       <Text style={styles.label}>Instagram Handle</Text>
-      <TextInput
-        style={styles.input}
-        value={igHandle}
-        onChangeText={setIgHandle}
-        autoCapitalize="none"
-        placeholderTextColor="#666"
-      />
+      <View style={styles.handleInputRow}>
+        <Text style={styles.atPrefix}>@</Text>
+        <TextInput
+          style={styles.handleInput}
+          value={igHandle}
+          onChangeText={(val) => setIgHandle(val.replace('@', ''))}
+          autoCapitalize="none"
+          placeholderTextColor="#666"
+        />
+      </View>
 
       <Text style={styles.sectionTitle}>Reference URLs</Text>
       <Text style={styles.sectionSubtitle}>
@@ -295,6 +297,28 @@ const styles = StyleSheet.create({
     borderColor: '#333',
     marginBottom: 16,
   },
+  handleInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    marginBottom: 16,
+  },
+  atPrefix: {
+    color: '#4f8ef7',
+    fontSize: 18,
+    fontWeight: '600',
+    paddingLeft: 16,
+  },
+  handleInput: {
+    flex: 1,
+    padding: 16,
+    paddingLeft: 8,
+    fontSize: 16,
+    color: '#fff',
+  },
   tierCard: {
     backgroundColor: '#1a2a4a',
     borderRadius: 12,
@@ -334,10 +358,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a3a',
     borderColor: '#aa77ff',
   },
-  upgradeButtonText: {
+  upgradeName: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '600',
+  },
+  upgradeDetail: {
+    color: '#999',
+    fontSize: 14,
+    marginTop: 4,
   },
   urlRow: {
     flexDirection: 'row',

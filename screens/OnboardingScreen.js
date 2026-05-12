@@ -11,7 +11,6 @@ import {
   Platform,
   Animated,
   Alert,
-  Image,
 } from 'react-native';
 import { APIFY_API_TOKEN, ANTHROPIC_API_KEY } from '../config';
 
@@ -83,6 +82,7 @@ export default function OnboardingScreen({ onComplete }) {
   const [igHandle, setIgHandle] = useState('');
   const [igData, setIgData] = useState(null);
   const [igLoading, setIgLoading] = useState(false);
+  const [igError, setIgError] = useState('');
   const [urls, setUrls] = useState(['']);
   const [urlContents, setUrlContents] = useState({});
   const [urlLoading, setUrlLoading] = useState(false);
@@ -102,6 +102,7 @@ export default function OnboardingScreen({ onComplete }) {
   const fetchIgProfile = async () => {
     if (!igHandle.trim()) return;
     setIgLoading(true);
+    setIgError('');
     try {
       const handle = igHandle.replace('@', '').trim();
       const response = await fetch(
@@ -117,16 +118,18 @@ export default function OnboardingScreen({ onComplete }) {
         }
       );
       const data = await response.json();
-      if (data && data.length > 0) {
+      if (data && data.length > 0 && data[0].ownerUsername) {
         setIgData({
-          handle,
+          handle: data[0].ownerUsername,
+          fullName: data[0].ownerFullName || '',
           posts: data.map((p) => p.caption || p.text || '').filter(Boolean),
-          bio: data[0]?.ownerFullName || '',
-          profilePic: data[0]?.profilePicUrl || data[0]?.ownerProfilePicUrl || '',
         });
+      } else {
+        setIgError('Couldn\'t find that account. Check the spelling and try again.');
       }
     } catch (error) {
       console.error('Failed to fetch IG:', error);
+      setIgError('Something went wrong. Check your connection and try again.');
     } finally {
       setIgLoading(false);
     }
@@ -224,9 +227,9 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
     }
     onComplete({
       accountType,
-      igHandle: igData?.handle || igHandle,
+      igHandle: igData?.handle || igHandle.replace('@', ''),
+      igFullName: igData?.fullName || '',
       igPosts: igData?.posts || [],
-      profilePic: igData?.profilePic || '',
       referenceUrls: urlContents,
       sliderValues,
       sliders: getSliders(),
@@ -285,14 +288,22 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
           <View style={styles.stepContainer}>
             <Text style={styles.title}>Your Instagram</Text>
             <Text style={styles.subtitle}>We'll pull your recent posts to learn your voice</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="@yourhandle"
-              placeholderTextColor="#666"
-              value={igHandle}
-              onChangeText={setIgHandle}
-              autoCapitalize="none"
-            />
+            <View style={styles.handleInputRow}>
+              <Text style={styles.atPrefix}>@</Text>
+              <TextInput
+                style={styles.handleInput}
+                placeholder="yourhandle"
+                placeholderTextColor="#666"
+                value={igHandle}
+                onChangeText={(val) => {
+                  setIgHandle(val.replace('@', ''));
+                  setIgError('');
+                  setIgData(null);
+                }}
+                autoCapitalize="none"
+                autoFocus={true}
+              />
+            </View>
             {igLoading ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator color="#4f8ef7" />
@@ -308,31 +319,37 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
                   ]}
                 />
               </View>
+            ) : igError ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{igError}</Text>
+              </View>
             ) : igData ? (
               <View style={styles.successBox}>
-                {igData.profilePic ? (
-                  <Image
-                    source={{ uri: igData.profilePic }}
-                    style={styles.profilePic}
-                  />
-                ) : null}
-                <Text style={styles.successText}>
-                  Pulled {igData.posts.length} posts from @{igData.handle}
+                <Text style={styles.successName}>{igData.fullName}</Text>
+                <Text style={styles.successHandle}>@{igData.handle}</Text>
+               <Text style={styles.successPosts}>
+                  Account connected
                 </Text>
               </View>
             ) : null}
-            <TouchableOpacity
-              style={[styles.button, !igHandle.trim() && styles.buttonDisabled]}
-              onPress={async () => {
-                if (!igData) await fetchIgProfile();
-                setStep(3);
-              }}
-              disabled={!igHandle.trim() || igLoading}
-            >
-              <Text style={styles.buttonText}>{igData ? 'Next' : 'Pull Posts & Continue'}</Text>
-            </TouchableOpacity>
+            {!igData ? (
+              <TouchableOpacity
+                style={[styles.button, !igHandle.trim() && styles.buttonDisabled]}
+                onPress={fetchIgProfile}
+                disabled={!igHandle.trim() || igLoading}
+              >
+                <Text style={styles.buttonText}>Pull Posts</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => setStep(3)}
+              >
+                <Text style={styles.buttonText}>Next</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={() => setStep(3)} style={styles.skipButton}>
-              <Text style={styles.skipText}>Skip this step</Text>
+              <Text style={styles.skipText}>I don't have Instagram</Text>
             </TouchableOpacity>
           </View>
         );
@@ -565,6 +582,29 @@ const styles = StyleSheet.create({
     borderColor: '#333',
     marginBottom: 16,
   },
+  handleInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#333',
+    marginBottom: 16,
+  },
+  atPrefix: {
+    color: '#4f8ef7',
+    fontSize: 18,
+    fontWeight: '600',
+    paddingLeft: 16,
+  },
+  handleInput: {
+    flex: 1,
+    padding: 16,
+    paddingLeft: 8,
+    fontSize: 16,
+    color: '#fff',
+  },
   button: {
     backgroundColor: '#4f8ef7',
     paddingVertical: 16,
@@ -611,23 +651,39 @@ const styles = StyleSheet.create({
   typeDescSelected: {
     color: '#aac4f0',
   },
-  profilePic: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginBottom: 12,
-  },
-  successBox: {
-    backgroundColor: '#1a3a1a',
+  errorBox: {
+    backgroundColor: '#3a1a1a',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     width: '100%',
+  },
+  errorText: {
+    color: '#ff6666',
+    textAlign: 'center',
+  },
+  successBox: {
+    backgroundColor: '#1a3a1a',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    width: '100%',
     alignItems: 'center',
   },
-  successText: {
+  successName: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  successHandle: {
     color: '#4caf50',
-    textAlign: 'center',
+    fontSize: 16,
+    marginTop: 4,
+  },
+  successPosts: {
+    color: '#999',
+    fontSize: 14,
+    marginTop: 8,
   },
   skipButton: {
     marginTop: 16,
@@ -635,7 +691,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     color: '#666',
-    fontSize: 16,
+    fontSize: 14,
   },
   addUrlButton: {
     marginBottom: 16,

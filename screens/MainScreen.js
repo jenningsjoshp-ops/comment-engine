@@ -10,6 +10,7 @@ import {
   Alert,
   Animated,
   Linking,
+  Modal,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { ANTHROPIC_API_KEY, APIFY_API_TOKEN } from '../config';
@@ -89,6 +90,7 @@ export default function MainScreen({
   const [loadingPhase, setLoadingPhase] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [currentCaption, setCurrentCaption] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
 
   const remaining = tierLimit - commentCount;
 
@@ -243,6 +245,7 @@ Generate exactly 3 different comments for the given post. Each should have a dif
 
     setTimeout(() => {
       setCopiedIndex(null);
+      setPostUrl('');
       Alert.alert(
         'Comment copied!',
         'Open Instagram to paste your comment?',
@@ -286,7 +289,12 @@ Generate exactly 3 different comments for the given post. Each should have a dif
         </Text>
       </View>
 
-      <Text style={styles.label}>Post URL</Text>
+      <View style={styles.urlLabelRow}>
+        <Text style={styles.label}>Post URL</Text>
+        <TouchableOpacity onPress={() => setShowHelp(true)}>
+          <Text style={styles.helpLink}>How do I get this?</Text>
+        </TouchableOpacity>
+      </View>
       <TextInput
         style={styles.input}
         placeholder="Paste Instagram post URL here..."
@@ -295,6 +303,35 @@ Generate exactly 3 different comments for the given post. Each should have a dif
         onChangeText={setPostUrl}
         autoCapitalize="none"
       />
+
+      <Modal
+        visible={showHelp}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowHelp(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowHelp(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>How to copy a post URL</Text>
+            <Text style={styles.modalText}>
+              1. Open Instagram and find the post{'\n'}
+              2. Tap the three dots (···) in the top right{'\n'}
+              3. Tap "Copy Link"{'\n'}
+              4. Come back here and paste it
+            </Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowHelp(false)}
+            >
+              <Text style={styles.modalButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <TouchableOpacity
         style={[styles.generateButton, (loading || remaining <= 0) && styles.buttonDisabled]}
@@ -393,10 +430,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'right',
   },
+  urlLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   label: {
     fontSize: 14,
     color: '#999',
-    marginBottom: 8,
+  },
+  helpLink: {
+    fontSize: 13,
+    color: '#4f8ef7',
   },
   input: {
     backgroundColor: '#1a1a1a',
@@ -407,6 +453,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333',
     marginBottom: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 16,
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#ccc',
+    lineHeight: 28,
+    marginBottom: 20,
+  },
+  modalButton: {
+    backgroundColor: '#4f8ef7',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   generateButton: {
     backgroundColor: '#4f8ef7',

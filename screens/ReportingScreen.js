@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+   Linking,
 } from 'react-native';
 
 export default function ReportingScreen({ navigation, commentHistory, commentCount, tier, tierLimit }) {
@@ -35,6 +36,7 @@ export default function ReportingScreen({ navigation, commentHistory, commentCou
   };
 
   const topWords = commentHistory.length > 5 ? getTopWords() : [];
+  const hasData = commentHistory.length > 0;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -46,81 +48,92 @@ export default function ReportingScreen({ navigation, commentHistory, commentCou
         <View style={{ width: 50 }} />
       </View>
 
-      <View style={styles.statsGrid}>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{commentCount}</Text>
-          <Text style={styles.statLabel}>Total Comments</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{todayCount}</Text>
-          <Text style={styles.statLabel}>Today</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{thisWeekCount}</Text>
-          <Text style={styles.statLabel}>This Week</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{uniquePosts}</Text>
-          <Text style={styles.statLabel}>Unique Posts</Text>
-        </View>
-      </View>
-
-      <View style={styles.usageSection}>
-        <Text style={styles.sectionTitle}>Monthly Usage</Text>
-        <View style={styles.usageBarContainer}>
-          <View style={styles.usageTrack}>
-            <View
-              style={[
-                styles.usageFill,
-                {
-                  width: `${Math.min((commentCount / tierLimit) * 100, 100)}%`,
-                  backgroundColor: commentCount / tierLimit > 0.9 ? '#ff4444' : commentCount / tierLimit > 0.7 ? '#ffaa00' : '#4f8ef7',
-                },
-              ]}
-            />
-          </View>
-          <Text style={styles.usageText}>
-            {commentCount} of {tierLimit} ({tier} plan)
-          </Text>
-        </View>
-      </View>
-
-      {topWords.length > 0 && (
-        <View style={styles.insightSection}>
-          <Text style={styles.sectionTitle}>Your Voice DNA</Text>
-          <Text style={styles.insightSubtitle}>Words that show up most in your picks</Text>
-          <View style={styles.wordCloud}>
-            {topWords.map((word) => (
-              <View key={word} style={styles.wordChip}>
-                <Text style={styles.wordText}>{word}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {commentHistory.length > 0 && (
-        <View style={styles.historySection}>
-          <Text style={styles.sectionTitle}>Recent Comments</Text>
-          {commentHistory.slice(0, 10).map((entry) => (
-            <View key={entry.id} style={styles.historyCard}>
-              <Text style={styles.historyComment}>{entry.selected}</Text>
-              <Text style={styles.historyMeta}>
-                {new Date(entry.timestamp).toLocaleDateString()} at{' '}
-                {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {commentHistory.length === 0 && (
+      {!hasData ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>No comments yet</Text>
           <Text style={styles.emptySubtitle}>
             Generate and select comments to see your stats build up here
           </Text>
+          <TouchableOpacity
+            style={styles.emptyButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.emptyButtonText}>Start Commenting</Text>
+          </TouchableOpacity>
         </View>
+      ) : (
+        <>
+          <View style={styles.statsGrid}>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{commentCount}</Text>
+              <Text style={styles.statLabel}>Comments Posted</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{todayCount}</Text>
+              <Text style={styles.statLabel}>Today's Comments</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{thisWeekCount}</Text>
+              <Text style={styles.statLabel}>This Week</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statNumber}>{uniquePosts}</Text>
+              <Text style={styles.statLabel}>Posts Commented On</Text>
+            </View>
+          </View>
+
+          <View style={styles.usageSection}>
+            <Text style={styles.sectionTitle}>Monthly Usage</Text>
+            <View style={styles.usageBarContainer}>
+              <View style={styles.usageTrack}>
+                <View
+                  style={[
+                    styles.usageFill,
+                    {
+                      width: `${Math.min((commentCount / tierLimit) * 100, 100)}%`,
+                      backgroundColor: commentCount / tierLimit > 0.9 ? '#ff4444' : commentCount / tierLimit > 0.7 ? '#ffaa00' : '#4f8ef7',
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.usageText}>
+                {commentCount} of {tierLimit} comments used ({tier} plan)
+              </Text>
+            </View>
+          </View>
+
+          {topWords.length > 0 && (
+            <View style={styles.insightSection}>
+              <Text style={styles.sectionTitle}>Your Voice DNA</Text>
+              <Text style={styles.insightSubtitle}>Words that show up most in your picks</Text>
+              <View style={styles.wordCloud}>
+                {topWords.map((word) => (
+                  <View key={word} style={styles.wordChip}>
+                    <Text style={styles.wordText}>{word}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <View style={styles.historySection}>
+            <Text style={styles.sectionTitle}>Recent Comments</Text>
+            {commentHistory.slice(0, 10).map((entry) => (
+              <View key={entry.id} style={styles.historyCard}>
+                <Text style={styles.historyComment}>{entry.selected}</Text>
+                <Text style={styles.historyMeta}>
+                {new Date(entry.timestamp).toLocaleDateString()} at{' '}
+                {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+              {entry.url ? (
+                <TouchableOpacity onPress={() => Linking.openURL(entry.url)}>
+                  <Text style={styles.historyLink}>View post on Instagram</Text>
+                </TouchableOpacity>
+              ) : null}
+</View>
+            ))}
+          </View>
+        </>
       )}
     </ScrollView>
   );
@@ -154,6 +167,34 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
+  emptyState: {
+    alignItems: 'center',
+    marginTop: 80,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  emptyButton: {
+    backgroundColor: '#4f8ef7',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -179,6 +220,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#999',
     marginTop: 4,
+    textAlign: 'center',
   },
   usageSection: {
     marginBottom: 24,
@@ -254,24 +296,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
   },
-  historyMeta: {
+ historyMeta: {
     color: '#666',
     fontSize: 12,
     marginTop: 8,
   },
-  emptyState: {
-    alignItems: 'center',
-    marginTop: 40,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
+  historyLink: {
+    color: '#4f8ef7',
+    fontSize: 13,
+    marginTop: 6,
   },
 });
