@@ -11,6 +11,7 @@ import {
   Platform,
   Animated,
   Alert,
+  Image,
 } from 'react-native';
 import { APIFY_API_TOKEN, ANTHROPIC_API_KEY } from '../config';
 
@@ -121,6 +122,7 @@ export default function OnboardingScreen({ onComplete }) {
           handle,
           posts: data.map((p) => p.caption || p.text || '').filter(Boolean),
           bio: data[0]?.ownerFullName || '',
+          profilePic: data[0]?.profilePicUrl || data[0]?.ownerProfilePicUrl || '',
         });
       }
     } catch (error) {
@@ -224,6 +226,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
       accountType,
       igHandle: igData?.handle || igHandle,
       igPosts: igData?.posts || [],
+      profilePic: igData?.profilePic || '',
       referenceUrls: urlContents,
       sliderValues,
       sliders: getSliders(),
@@ -307,6 +310,12 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
               </View>
             ) : igData ? (
               <View style={styles.successBox}>
+                {igData.profilePic ? (
+                  <Image
+                    source={{ uri: igData.profilePic }}
+                    style={styles.profilePic}
+                  />
+                ) : null}
                 <Text style={styles.successText}>
                   Pulled {igData.posts.length} posts from @{igData.handle}
                 </Text>
@@ -602,12 +611,19 @@ const styles = StyleSheet.create({
   typeDescSelected: {
     color: '#aac4f0',
   },
+  profilePic: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 12,
+  },
   successBox: {
     backgroundColor: '#1a3a1a',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     width: '100%',
+    alignItems: 'center',
   },
   successText: {
     color: '#4caf50',
