@@ -200,8 +200,7 @@ ${sliderDesc}
 ${igContext}
 ${urlContext}
 
-Generate exactly 1 sample comment for a popular post in this account's niche. The comment should demonstrate the voice settings above. Return ONLY the comment text, nothing else.`,
-          messages: [
+Generate exactly 1 sample comment for a popular post in this account's niche. STRICT RULES YOU MUST FOLLOW: maximum 2 sentences, NEVER use dashes or em dashes or hyphens between words, sounds like a casual text message not a caption, never promotional, make people curious about the commenter. Return ONLY the comment text, nothing else. Do not use any dashes.`,          messages: [
             {
               role: 'user',
               content: 'Generate a sample comment that shows what my comments will sound like.',
@@ -403,7 +402,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
 
       case 4:
         return (
-          <ScrollView contentContainerStyle={styles.stepContainer}>
+          <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>Set your voice</Text>
             <Text style={styles.subtitle}>Drag each slider to match how you want to sound</Text>
             {getSliders().map((slider) => (
@@ -515,7 +514,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. Th
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.progress}>
           {[1, 2, 3, 4, 5, 6].map((s) => (
             <View

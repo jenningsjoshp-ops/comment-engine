@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 
 const FEEDBACK_TYPES = [
@@ -63,60 +65,71 @@ export default function FeedbackScreen({ navigation, userProfile }) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Feedback</Text>
-        <View style={{ width: 50 }} />
-      </View>
-
-      <Text style={styles.sectionTitle}>What's this about?</Text>
-
-      {FEEDBACK_TYPES.map((type) => (
-        <TouchableOpacity
-          key={type.id}
-          style={[styles.typeCard, feedbackType === type.id && styles.typeCardSelected]}
-          onPress={() => setFeedbackType(type.id)}
-        >
-          <Text style={[styles.typeLabel, feedbackType === type.id && styles.typeLabelSelected]}>
-            {type.label}
-          </Text>
-          <Text style={[styles.typeDesc, feedbackType === type.id && styles.typeDescSelected]}>
-            {type.desc}
-          </Text>
-        </TouchableOpacity>
-      ))}
-
-      <Text style={styles.sectionTitle}>Tell us more</Text>
-      <TextInput
-        style={styles.textArea}
-        placeholder={
-          feedbackType === 'bug'
-            ? 'What happened? What were you trying to do?'
-            : feedbackType === 'comment_quality'
-            ? 'What was off about the comments? Too generic? Wrong tone?'
-            : feedbackType === 'feature'
-            ? 'What would you love to see in CommentEngine?'
-            : 'What\'s on your mind?'
-        }
-        placeholderTextColor="#666"
-        value={message}
-        onChangeText={setMessage}
-        multiline
-        numberOfLines={6}
-        textAlignVertical="top"
-      />
-
-      <TouchableOpacity
-        style={[styles.button, (!feedbackType || !message.trim()) && styles.buttonDisabled]}
-        onPress={handleSubmit}
-        disabled={!feedbackType || !message.trim()}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.buttonText}>Send Feedback</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Feedback</Text>
+          <View style={{ width: 50 }} />
+        </View>
+
+        <Text style={styles.sectionTitle}>What's this about?</Text>
+
+        {FEEDBACK_TYPES.map((type) => (
+          <TouchableOpacity
+            key={type.id}
+            style={[styles.typeCard, feedbackType === type.id && styles.typeCardSelected]}
+            onPress={() => setFeedbackType(type.id)}
+          >
+            <Text style={[styles.typeLabel, feedbackType === type.id && styles.typeLabelSelected]}>
+              {type.label}
+            </Text>
+            <Text style={[styles.typeDesc, feedbackType === type.id && styles.typeDescSelected]}>
+              {type.desc}
+            </Text>
+          </TouchableOpacity>
+        ))}
+
+        <Text style={styles.sectionTitle}>Tell us more</Text>
+        <TextInput
+          style={styles.textArea}
+          placeholder={
+            feedbackType === 'bug'
+              ? 'What happened? What were you trying to do?'
+              : feedbackType === 'comment_quality'
+              ? 'What was off about the comments? Too generic? Wrong tone?'
+              : feedbackType === 'feature'
+              ? 'What would you love to see in CommentEngine?'
+              : 'What\'s on your mind?'
+          }
+          placeholderTextColor="#666"
+          value={message}
+          onChangeText={setMessage}
+          multiline
+          numberOfLines={6}
+          textAlignVertical="top"
+        />
+
+        <TouchableOpacity
+          style={[styles.button, (!feedbackType || !message.trim()) && styles.buttonDisabled]}
+          onPress={handleSubmit}
+          disabled={!feedbackType || !message.trim()}
+        >
+          <Text style={styles.buttonText}>Send Feedback</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -124,6 +137,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0a0a0a',
+  },
+  scrollContainer: {
+    flex: 1,
   },
   content: {
     padding: 24,

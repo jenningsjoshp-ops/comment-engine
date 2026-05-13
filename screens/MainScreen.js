@@ -261,7 +261,7 @@ Generate exactly 3 different comments for the given post. Each should have a dif
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.navigate('Reporting')} style={styles.navButton}>
           <Text style={styles.navText}>Stats</Text>
