@@ -9,11 +9,7 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal",
-      "ios": {
-        "buildConfiguration": "Release",
-        "resourceClass": "m-medium"
-      }
+      "distribution": "internal"
     },
     "production": {
       "autoIncrement": true
