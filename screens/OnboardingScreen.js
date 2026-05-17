@@ -74,8 +74,6 @@ const BUSINESS_SLIDERS = [
   { id: 'initiative', left: 'Reactive', right: 'Proactive' },
 ];
 
-const SLIDER_STEPS = [1, 2, 3, 4, 5];
-
 export default function OnboardingScreen({ onComplete }) {
   const [step, setStep] = useState(1);
   const [accountType, setAccountType] = useState(null);
@@ -83,6 +81,9 @@ export default function OnboardingScreen({ onComplete }) {
   const [igData, setIgData] = useState(null);
   const [igLoading, setIgLoading] = useState(false);
   const [igError, setIgError] = useState('');
+  const [extractedHashtags, setExtractedHashtags] = useState([]);
+  const [selectedHashtags, setSelectedHashtags] = useState([]);
+  const [customHashtag, setCustomHashtag] = useState('');
   const [urls, setUrls] = useState(['']);
   const [urlContents, setUrlContents] = useState({});
   const [urlLoading, setUrlLoading] = useState(false);
@@ -97,6 +98,34 @@ export default function OnboardingScreen({ onComplete }) {
 
   const isValidEmail = (e) => {
     return e.includes('@') && e.includes('.') && e.indexOf('@') < e.lastIndexOf('.');
+  };
+
+  const extractHashtagsFromPosts = (posts) => {
+    const allTags = {};
+    posts.forEach((post) => {
+      if (post.hashtags && Array.isArray(post.hashtags)) {
+        post.hashtags.forEach((tag) => {
+          const clean = tag.toLowerCase().replace('#', '');
+          if (clean.length > 2) {
+            allTags[clean] = (allTags[clean] || 0) + 1;
+          }
+        });
+      }
+      const caption = post.caption || post.text || '';
+      const matches = caption.match(/#(\w+)/g);
+      if (matches) {
+        matches.forEach((tag) => {
+          const clean = tag.toLowerCase().replace('#', '');
+          if (clean.length > 2) {
+            allTags[clean] = (allTags[clean] || 0) + 1;
+          }
+        });
+      }
+    });
+    return Object.entries(allTags)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([tag]) => tag);
   };
 
   const fetchIgProfile = async () => {
@@ -119,11 +148,18 @@ export default function OnboardingScreen({ onComplete }) {
       );
       const data = await response.json();
       if (data && data.length > 0 && data[0].ownerUsername) {
+        const posts = data;
+        const captions = posts.map((p) => p.caption || p.text || '').filter(Boolean);
+        const hashtags = extractHashtagsFromPosts(posts);
+
         setIgData({
           handle: data[0].ownerUsername,
           fullName: data[0].ownerFullName || '',
-          posts: data.map((p) => p.caption || p.text || '').filter(Boolean),
+          posts: captions,
+          rawPosts: posts,
         });
+        setExtractedHashtags(hashtags);
+        setSelectedHashtags(hashtags);
       } else {
         setIgError('Couldn\'t find that account. Check the spelling and try again.');
       }
@@ -135,10 +171,25 @@ export default function OnboardingScreen({ onComplete }) {
     }
   };
 
+  const toggleHashtag = (tag) => {
+    setSelectedHashtags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const addCustomHashtag = () => {
+    const clean = customHashtag.toLowerCase().replace('#', '').trim();
+    if (clean.length > 2 && !selectedHashtags.includes(clean)) {
+      setSelectedHashtags((prev) => [...prev, clean]);
+      setExtractedHashtags((prev) => prev.includes(clean) ? prev : [...prev, clean]);
+    }
+    setCustomHashtag('');
+  };
+
   const fetchUrlContent = async () => {
     const validUrls = urls.filter((u) => u.trim());
     if (validUrls.length === 0) {
-      setStep(4);
+      setStep(5);
       return;
     }
     setUrlLoading(true);
@@ -159,7 +210,7 @@ export default function OnboardingScreen({ onComplete }) {
       console.error('Failed to fetch URLs:', error);
     } finally {
       setUrlLoading(false);
-      setStep(4);
+      setStep(5);
     }
   };
 
@@ -170,7 +221,8 @@ export default function OnboardingScreen({ onComplete }) {
       const sliderDesc = sliders
         .map((s) => {
           const val = sliderValues[s.id] || 3;
-          return `${s.left} vs ${s.right}: ${val}/5 toward ${val > 3 ? s.right : val < 3 ? s.left : 'neutral'}`;
+          const label = val <= 2 ? s.left : val >= 4 ? s.right : 'balanced';
+          return `${s.left} vs ${s.right}: leaning ${label}`;
         })
         .join('\n');
 
@@ -200,7 +252,8 @@ ${sliderDesc}
 ${igContext}
 ${urlContext}
 
-Generate exactly 1 sample comment for a popular post in this account's niche. STRICT RULES YOU MUST FOLLOW: maximum 2 sentences, NEVER use dashes or em dashes or hyphens between words, sounds like a casual text message not a caption, never promotional, make people curious about the commenter. Return ONLY the comment text, nothing else. Do not use any dashes.`,          messages: [
+Generate exactly 1 sample comment for a popular post in this account's niche. STRICT RULES YOU MUST FOLLOW: maximum 2 sentences, NEVER use dashes or em dashes or hyphens between words, sounds like a casual text message not a caption, never promotional, make people curious about the commenter. Return ONLY the comment text, nothing else. Do not use any dashes.`,
+          messages: [
             {
               role: 'user',
               content: 'Generate a sample comment that shows what my comments will sound like.',
@@ -229,6 +282,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
       igHandle: igData?.handle || igHandle.replace('@', ''),
       igFullName: igData?.fullName || '',
       igPosts: igData?.posts || [],
+      hashtags: selectedHashtags,
       referenceUrls: urlContents,
       sliderValues,
       sliders: getSliders(),
@@ -249,6 +303,12 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
 
   const setSlider = (id, value) => {
     setSliderValues((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const getSliderLabel = (slider, value) => {
+    if (value <= 2) return slider.left;
+    if (value >= 4) return slider.right;
+    return 'Balanced';
   };
 
   const renderStep = () => {
@@ -287,7 +347,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
           <View style={styles.stepContainer}>
             <Text style={styles.title}>Your Instagram</Text>
             <Text style={styles.subtitle}>We'll pull your recent posts to learn your voice</Text>
-            <View style={styles.handleInputRow}>
+            <View style={[styles.handleInputRow, igLoading && styles.inputDisabled]}>
               <Text style={styles.atPrefix}>@</Text>
               <TextInput
                 style={styles.handleInput}
@@ -301,6 +361,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
                 }}
                 autoCapitalize="none"
                 autoFocus={true}
+                editable={!igLoading}
               />
             </View>
             {igLoading ? (
@@ -326,14 +387,12 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
               <View style={styles.successBox}>
                 <Text style={styles.successName}>{igData.fullName}</Text>
                 <Text style={styles.successHandle}>@{igData.handle}</Text>
-               <Text style={styles.successPosts}>
-                  Account connected
-                </Text>
+                <Text style={styles.successPosts}>Account connected</Text>
               </View>
             ) : null}
             {!igData ? (
               <TouchableOpacity
-                style={[styles.button, !igHandle.trim() && styles.buttonDisabled]}
+                style={[styles.button, (!igHandle.trim() || igLoading) && styles.buttonDisabled]}
                 onPress={fetchIgProfile}
                 disabled={!igHandle.trim() || igLoading}
               >
@@ -347,13 +406,72 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
                 <Text style={styles.buttonText}>Next</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => setStep(3)} style={styles.skipButton}>
+            <TouchableOpacity onPress={() => setStep(4)} style={styles.skipButton}>
               <Text style={styles.skipText}>I don't have Instagram</Text>
             </TouchableOpacity>
           </View>
         );
 
       case 3:
+        return (
+          <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
+            <Text style={styles.title}>Your Communities</Text>
+            <Text style={styles.subtitle}>
+              Tap to remove any you don't want. Add your own below.
+            </Text>
+            <View style={styles.hashtagGrid}>
+              {extractedHashtags.map((tag) => (
+                <TouchableOpacity
+                  key={tag}
+                  style={[
+                    styles.hashtagChip,
+                    selectedHashtags.includes(tag) && styles.hashtagChipSelected,
+                  ]}
+                  onPress={() => toggleHashtag(tag)}
+                >
+                  <Text
+                    style={[
+                      styles.hashtagText,
+                      selectedHashtags.includes(tag) && styles.hashtagTextSelected,
+                    ]}
+                  >
+                    #{tag}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.addHashtagRow}>
+              <TextInput
+                style={styles.addHashtagInput}
+                placeholder="Add a hashtag..."
+                placeholderTextColor="#666"
+                value={customHashtag}
+                onChangeText={setCustomHashtag}
+                autoCapitalize="none"
+                onSubmitEditing={addCustomHashtag}
+              />
+              <TouchableOpacity
+                style={[styles.addHashtagButton, !customHashtag.trim() && styles.buttonDisabled]}
+                onPress={addCustomHashtag}
+                disabled={!customHashtag.trim()}
+              >
+                <Text style={styles.addHashtagButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.hashtagCount}>
+              {selectedHashtags.length} hashtags selected
+            </Text>
+            <TouchableOpacity
+              style={[styles.button, selectedHashtags.length === 0 && styles.buttonDisabled]}
+              onPress={() => setStep(4)}
+              disabled={selectedHashtags.length === 0}
+            >
+              <Text style={styles.buttonText}>Next</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        );
+
+      case 4:
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.title}>Reference URLs</Text>
@@ -400,36 +518,44 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
           </View>
         );
 
-      case 4:
+      case 5:
         return (
           <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>Set your voice</Text>
-            <Text style={styles.subtitle}>Drag each slider to match how you want to sound</Text>
+            <Text style={styles.subtitle}>Tap where you fall on each scale</Text>
             {getSliders().map((slider) => (
               <View key={slider.id} style={styles.sliderContainer}>
                 <View style={styles.sliderLabels}>
-                  <Text style={styles.sliderLeft}>{slider.left}</Text>
-                  <Text style={styles.sliderRight}>{slider.right}</Text>
+                  <Text style={[styles.sliderLeft, (sliderValues[slider.id] || 3) <= 2 && styles.sliderActive]}>{slider.left}</Text>
+                  <Text style={[styles.sliderRight, (sliderValues[slider.id] || 3) >= 4 && styles.sliderActive]}>{slider.right}</Text>
                 </View>
-                <View style={styles.sliderDots}>
-                  {SLIDER_STEPS.map((val) => (
+                <View style={styles.sliderTrack}>
+                  {[1, 2, 3, 4, 5].map((val) => (
                     <TouchableOpacity
                       key={slider.id + '-' + val}
-                      style={[styles.dot, (sliderValues[slider.id] || 3) === val && styles.dotSelected]}
+                      style={[
+                        styles.sliderDot,
+                        (sliderValues[slider.id] || 3) === val && styles.sliderDotSelected,
+                      ]}
                       onPress={() => setSlider(slider.id, val)}
-                    >
-                      <Text style={[styles.dotText, (sliderValues[slider.id] || 3) === val && styles.dotTextSelected]}>
-                        {val}
-                      </Text>
-                    </TouchableOpacity>
+                    />
                   ))}
+                  <View
+                    style={[
+                      styles.sliderFill,
+                      { width: `${((sliderValues[slider.id] || 3) - 1) * 25}%` },
+                    ]}
+                  />
                 </View>
+                <Text style={styles.sliderCurrent}>
+                  {getSliderLabel(slider, sliderValues[slider.id] || 3)}
+                </Text>
               </View>
             ))}
             <TouchableOpacity
               style={styles.button}
               onPress={() => {
-                setStep(5);
+                setStep(6);
                 generatePreview();
               }}
             >
@@ -438,7 +564,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
           </ScrollView>
         );
 
-      case 5:
+      case 6:
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.title}>Here's your voice</Text>
@@ -465,18 +591,27 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
             )}
             <TouchableOpacity
               style={styles.button}
-              onPress={() => setStep(6)}
+              onPress={() => setStep(7)}
               disabled={previewLoading}
             >
               <Text style={styles.buttonText}>Looks good</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setStep(4)} style={styles.skipButton}>
+            <TouchableOpacity
+              onPress={() => {
+                generatePreview();
+              }}
+              style={styles.skipButton}
+              disabled={previewLoading}
+            >
+              <Text style={styles.skipText}>See another one</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setStep(5)} style={styles.skipButton}>
               <Text style={styles.skipText}>Adjust sliders</Text>
             </TouchableOpacity>
           </View>
         );
 
-      case 6:
+      case 7:
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.title}>Almost done</Text>
@@ -516,7 +651,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.progress}>
-          {[1, 2, 3, 4, 5, 6].map((s) => (
+          {[1, 2, 3, 4, 5, 6, 7].map((s) => (
             <View
               key={'step-' + s}
               style={[styles.progressDot, step >= s && styles.progressDotActive]}
@@ -546,9 +681,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   progressDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#333',
   },
   progressDotActive: {
@@ -590,6 +725,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333',
     marginBottom: 16,
+  },
+  inputDisabled: {
+    opacity: 0.5,
   },
   atPrefix: {
     color: '#4f8ef7',
@@ -692,6 +830,64 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 14,
   },
+  hashtagGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 24,
+  },
+  hashtagChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#333',
+    backgroundColor: '#1a1a1a',
+  },
+  hashtagChipSelected: {
+    backgroundColor: '#4f8ef7',
+    borderColor: '#4f8ef7',
+  },
+  hashtagText: {
+    color: '#999',
+    fontSize: 14,
+  },
+  hashtagTextSelected: {
+    color: '#fff',
+  },
+  addHashtagRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 10,
+    marginBottom: 16,
+  },
+  addHashtagInput: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    color: '#fff',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  addHashtagButton: {
+    backgroundColor: '#4f8ef7',
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+  },
+  addHashtagButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  hashtagCount: {
+    color: '#666',
+    fontSize: 13,
+    marginBottom: 16,
+  },
   addUrlButton: {
     marginBottom: 16,
   },
@@ -711,42 +907,59 @@ const styles = StyleSheet.create({
   sliderLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   sliderLeft: {
-    color: '#999',
-    fontSize: 13,
-  },
-  sliderRight: {
-    color: '#999',
-    fontSize: 13,
-  },
-  sliderDots: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-  },
-  dot: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dotSelected: {
-    backgroundColor: '#4f8ef7',
-    borderColor: '#4f8ef7',
-  },
-  dotText: {
     color: '#666',
     fontSize: 14,
   },
-  dotTextSelected: {
-    color: '#fff',
+  sliderRight: {
+    color: '#666',
+    fontSize: 14,
+  },
+  sliderActive: {
+    color: '#4f8ef7',
     fontWeight: '600',
+  },
+  sliderTrack: {
+    height: 6,
+    backgroundColor: '#333',
+    borderRadius: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 0,
+    position: 'relative',
+  },
+  sliderFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: 6,
+    backgroundColor: '#4f8ef7',
+    borderRadius: 3,
+  },
+  sliderDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#333',
+    borderWidth: 2,
+    borderColor: '#444',
+    zIndex: 1,
+  },
+  sliderDotSelected: {
+    backgroundColor: '#4f8ef7',
+    borderColor: '#4f8ef7',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  sliderCurrent: {
+    color: '#4f8ef7',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 8,
   },
   previewBox: {
     backgroundColor: '#1a1a1a',

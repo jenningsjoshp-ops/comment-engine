@@ -6,6 +6,7 @@ import MainScreen from './screens/MainScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import ReportingScreen from './screens/ReportingScreen';
 import FeedbackScreen from './screens/FeedbackScreen';
+import DiscoverScreen from './screens/DiscoverScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -16,11 +17,22 @@ export default function App() {
   const [selectedComments, setSelectedComments] = useState([]);
   const [commentCount, setCommentCount] = useState(0);
   const [tier, setTier] = useState('starter');
+  const [discoveryCount, setDiscoveryCount] = useState(0);
+  const [lastDiscoveryDate, setLastDiscoveryDate] = useState(null);
+  const [commentedPostUrls, setCommentedPostUrls] = useState([]);
+  const [discoveryCache, setDiscoveryCache] = useState({});
+  const [engagedAccounts, setEngagedAccounts] = useState([]);
 
   const tierLimits = {
     starter: 20,
     growth: 150,
     business: 500,
+  };
+
+  const discoveryLimits = {
+    starter: 1,
+    growth: 5,
+    business: 999,
   };
 
   const handleOnboardingComplete = (profile) => {
@@ -32,18 +44,54 @@ export default function App() {
     setUserProfile(updated);
   };
 
-  const handleCommentUsed = (comment, allOptions, postCaption, postUrl) => {
+  const handleCommentUsed = (comment, allOptions, postCaption, postUrl, accountUsername) => {
     const entry = {
       id: Date.now().toString(),
       selected: comment,
       options: allOptions,
       caption: postCaption,
       url: postUrl,
+      account: accountUsername || '',
       timestamp: new Date().toISOString(),
     };
     setCommentHistory((prev) => [entry, ...prev]);
     setSelectedComments((prev) => [comment, ...prev]);
     setCommentCount((prev) => prev + 1);
+
+    if (postUrl && !commentedPostUrls.includes(postUrl)) {
+      setCommentedPostUrls((prev) => [...prev, postUrl]);
+    }
+
+    if (accountUsername && !engagedAccounts.find((a) => a.username === accountUsername)) {
+      setEngagedAccounts((prev) => [
+        ...prev,
+        { username: accountUsername, count: 1, lastEngaged: new Date().toISOString() },
+      ]);
+    } else if (accountUsername) {
+      setEngagedAccounts((prev) =>
+        prev.map((a) =>
+          a.username === accountUsername
+            ? { ...a, count: a.count + 1, lastEngaged: new Date().toISOString() }
+            : a
+        )
+      );
+    }
+  };
+
+  const handleDiscoveryUsed = () => {
+    const today = new Date().toDateString();
+    if (lastDiscoveryDate !== today) {
+      setDiscoveryCount(1);
+      setLastDiscoveryDate(today);
+    } else {
+      setDiscoveryCount((prev) => prev + 1);
+    }
+  };
+
+  const getDiscoveryRemaining = () => {
+    const today = new Date().toDateString();
+    if (lastDiscoveryDate !== today) return discoveryLimits[tier];
+    return Math.max(0, discoveryLimits[tier] - discoveryCount);
   };
 
   return (
@@ -67,6 +115,25 @@ export default function App() {
                   commentCount={commentCount}
                   tierLimit={tierLimits[tier]}
                   tier={tier}
+                  discoveryRemaining={getDiscoveryRemaining()}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="Discover">
+              {(props) => (
+                <DiscoverScreen
+                  {...props}
+                  userProfile={userProfile}
+                  onCommentUsed={handleCommentUsed}
+                  selectedComments={selectedComments}
+                  commentCount={commentCount}
+                  tierLimit={tierLimits[tier]}
+                  tier={tier}
+                  commentedPostUrls={commentedPostUrls}
+                  onDiscoveryUsed={handleDiscoveryUsed}
+                  discoveryCache={discoveryCache}
+                  setDiscoveryCache={setDiscoveryCache}
+                  engagedAccounts={engagedAccounts}
                 />
               )}
             </Stack.Screen>
@@ -89,6 +156,7 @@ export default function App() {
                   commentCount={commentCount}
                   tier={tier}
                   tierLimit={tierLimits[tier]}
+                  engagedAccounts={engagedAccounts}
                 />
               )}
             </Stack.Screen>

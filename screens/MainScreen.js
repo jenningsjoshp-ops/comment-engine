@@ -83,6 +83,7 @@ export default function MainScreen({
   commentCount,
   tierLimit,
   tier,
+  discoveryRemaining,
 }) {
   const [postUrl, setPostUrl] = useState('');
   const [comments, setComments] = useState([]);
@@ -196,7 +197,7 @@ ${learningContext}
 
 Rules:
 - 1-2 sentences max
-- No dashes or em dashes
+- NEVER use dashes or em dashes or hyphens between words
 - Sounds like a text not a caption
 - Never promotional
 - Make people curious about the commenter
@@ -214,10 +215,7 @@ Generate exactly 3 different comments for the given post. Each should have a dif
       const data = await response.json();
 
       if (!data.content || !data.content[0]) {
-        Alert.alert(
-          'AI hiccup',
-          'The comment engine had a moment. Try again.'
-        );
+        Alert.alert('AI hiccup', 'The comment engine had a moment. Try again.');
         setLoading(false);
         return;
       }
@@ -227,10 +225,7 @@ Generate exactly 3 different comments for the given post. Each should have a dif
       const parsed = JSON.parse(cleaned);
       setComments(parsed);
     } catch (error) {
-      Alert.alert(
-        'Couldn\'t generate comments',
-        'Something went wrong with the AI. Try again in a moment.'
-      );
+      Alert.alert('Couldn\'t generate comments', 'Something went wrong with the AI. Try again in a moment.');
       console.error(error);
     } finally {
       setLoading(false);
@@ -289,6 +284,24 @@ Generate exactly 3 different comments for the given post. Each should have a dif
         </Text>
       </View>
 
+      <TouchableOpacity
+        style={styles.discoverButton}
+        onPress={() => navigation.navigate('Discover')}
+      >
+        <Text style={styles.discoverButtonText}>Find Posts For Me</Text>
+        <Text style={styles.discoverSubtext}>
+          {discoveryRemaining > 0
+            ? `${discoveryRemaining} ${discoveryRemaining === 1 ? 'session' : 'sessions'} left today`
+            : 'No sessions left today'}
+        </Text>
+      </TouchableOpacity>
+
+      <View style={styles.divider}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>or paste a URL</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
       <View style={styles.urlLabelRow}>
         <Text style={styles.label}>Post URL</Text>
         <TouchableOpacity onPress={() => setShowHelp(true)}>
@@ -318,8 +331,8 @@ Generate exactly 3 different comments for the given post. Each should have a dif
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>How to copy a post URL</Text>
             <Text style={styles.modalText}>
-              1. Open Instagram and find the post{'\n'}
-              2. Tap the three dots (···) in the top right{'\n'}
+       1. Open Instagram and find the post{'\n'}
+              2. Tap the share arrow (bottom right of the post){'\n'}
               3. Tap "Copy Link"{'\n'}
               4. Come back here and paste it
             </Text>
@@ -430,6 +443,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'right',
   },
+  discoverButton: {
+    backgroundColor: '#4f8ef7',
+    paddingVertical: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  discoverButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  discoverSubtext: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#333',
+  },
+  dividerText: {
+    color: '#666',
+    fontSize: 14,
+    marginHorizontal: 16,
+  },
   urlLabelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -494,18 +539,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   generateButton: {
-    backgroundColor: '#4f8ef7',
+    backgroundColor: '#2a2a2a',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#333',
   },
   buttonDisabled: {
-    backgroundColor: '#333',
+    backgroundColor: '#1a1a1a',
+    borderColor: '#222',
   },
   generateButtonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
   loadingContainer: {

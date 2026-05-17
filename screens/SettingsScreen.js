@@ -7,7 +7,9 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { APIFY_API_TOKEN } from '../config';
 
 const SLIDER_STEPS = [1, 2, 3, 4, 5];
 
@@ -22,6 +24,9 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
   const [name, setName] = useState(userProfile?.name || '');
   const [email, setEmail] = useState(userProfile?.email || '');
   const [igHandle, setIgHandle] = useState(userProfile?.igHandle || '');
+  const [hashtags, setHashtags] = useState(userProfile?.hashtags || []);
+  const [customHashtag, setCustomHashtag] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [urls, setUrls] = useState(() => {
     const existing = Object.keys(userProfile?.referenceUrls || {});
     return existing.length > 0 ? existing : [''];
@@ -51,6 +56,95 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
     const updated = urls.filter((_, i) => i !== index);
     if (updated.length === 0) updated.push('');
     setUrls(updated);
+  };
+
+  const removeHashtag = (tag) => {
+    setHashtags((prev) => prev.filter((t) => t !== tag));
+  };
+
+  const addHashtag = () => {
+    const clean = customHashtag.toLowerCase().replace('#', '').trim();
+    if (clean.length > 2 && !hashtags.includes(clean)) {
+      setHashtags((prev) => [...prev, clean]);
+    }
+    setCustomHashtag('');
+  };
+
+  const refreshVoice = async () => {
+    const handle = igHandle.replace('@', '').trim();
+    if (!handle) {
+      Alert.alert('No handle', 'Enter your Instagram handle first.');
+      return;
+    }
+
+    setRefreshing(true);
+    try {
+      const response = await fetch(
+        `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            directUrls: [`https://www.instagram.com/${handle}/`],
+            resultsType: 'posts',
+            resultsLimit: 10,
+          }),
+        }
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        const captions = data.map((p) => p.caption || p.text || '').filter(Boolean);
+
+        const allTags = {};
+        data.forEach((post) => {
+          const caption = post.caption || post.text || '';
+          const matches = caption.match(/#(\w+)/g);
+          if (matches) {
+            matches.forEach((tag) => {
+              const clean = tag.toLowerCase().replace('#', '');
+              if (clean.length > 2) {
+                allTags[clean] = (allTags[clean] || 0) + 1;
+              }
+            });
+          }
+          if (post.hashtags && Array.isArray(post.hashtags)) {
+            post.hashtags.forEach((tag) => {
+              const clean = tag.toLowerCase().replace('#', '');
+              if (clean.length > 2) {
+                allTags[clean] = (allTags[clean] || 0) + 1;
+              }
+            });
+          }
+        });
+
+        const newHashtags = Object.entries(allTags)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 15)
+          .map(([tag]) => tag);
+
+        const mergedHashtags = [...new Set([...hashtags, ...newHashtags])];
+
+        onUpdate({
+          ...userProfile,
+          igPosts: captions,
+          hashtags: mergedHashtags,
+          sliderValues,
+          name,
+          email,
+          igHandle: handle,
+        });
+
+        setHashtags(mergedHashtags);
+        Alert.alert('Voice refreshed', `Pulled ${captions.length} new posts and ${newHashtags.length} hashtags.`);
+      } else {
+        Alert.alert('Could not refresh', 'Couldn\'t find posts for that handle.');
+      }
+    } catch (error) {
+      console.error('Refresh failed:', error);
+      Alert.alert('Refresh failed', 'Something went wrong. Try again.');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleSave = async () => {
@@ -83,6 +177,7 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
       email,
       igHandle: igHandle.replace('@', ''),
       referenceUrls: urlContents,
+      hashtags,
     });
 
     navigation.goBack();
@@ -172,6 +267,55 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
           autoCapitalize="none"
           placeholderTextColor="#666"
         />
+      </View>
+
+      <TouchableOpacity
+        style={[styles.refreshButton, refreshing && styles.buttonDisabled]}
+        onPress={refreshVoice}
+        disabled={refreshing}
+      >
+        {refreshing ? (
+          <ActivityIndicator color="#4f8ef7" />
+        ) : (
+          <Text style={styles.refreshButtonText}>Refresh My Voice & Hashtags</Text>
+        )}
+      </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>Target Hashtags</Text>
+      <Text style={styles.sectionSubtitle}>
+        These determine which posts show up in Discover
+      </Text>
+
+      <View style={styles.hashtagGrid}>
+        {hashtags.map((tag) => (
+          <TouchableOpacity
+            key={tag}
+            style={styles.hashtagChip}
+            onPress={() => removeHashtag(tag)}
+          >
+            <Text style={styles.hashtagText}>#{tag}</Text>
+            <Text style={styles.hashtagRemove}> ✕</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.addHashtagRow}>
+        <TextInput
+          style={styles.addHashtagInput}
+          placeholder="Add a hashtag..."
+          placeholderTextColor="#666"
+          value={customHashtag}
+          onChangeText={setCustomHashtag}
+          autoCapitalize="none"
+          onSubmitEditing={addHashtag}
+        />
+        <TouchableOpacity
+          style={[styles.addHashtagButton, !customHashtag.trim() && styles.buttonDisabled]}
+          onPress={addHashtag}
+          disabled={!customHashtag.trim()}
+        >
+          <Text style={styles.addHashtagButtonText}>Add</Text>
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.sectionTitle}>Reference URLs</Text>
@@ -319,6 +463,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
   },
+  refreshButton: {
+    backgroundColor: '#2a2a2a',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4f8ef7',
+    marginBottom: 8,
+  },
+  refreshButtonText: {
+    color: '#4f8ef7',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   tierCard: {
     backgroundColor: '#1a2a4a',
     borderRadius: 12,
@@ -368,6 +526,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 4,
   },
+  hashtagGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  hashtagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#1a2a4a',
+    borderWidth: 1,
+    borderColor: '#4f8ef7',
+  },
+  hashtagText: {
+    color: '#4f8ef7',
+    fontSize: 14,
+  },
+  hashtagRemove: {
+    color: '#ff6666',
+    fontSize: 14,
+  },
+  addHashtagRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8,
+  },
+  addHashtagInput: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    color: '#fff',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  addHashtagButton: {
+    backgroundColor: '#4f8ef7',
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    justifyContent: 'center',
+  },
+  addHashtagButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   urlRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -393,6 +601,10 @@ const styles = StyleSheet.create({
   addUrlText: {
     color: '#4f8ef7',
     fontSize: 16,
+  },
+  buttonDisabled: {
+    backgroundColor: '#1a1a1a',
+    borderColor: '#333',
   },
   sliderContainer: {
     width: '100%',
