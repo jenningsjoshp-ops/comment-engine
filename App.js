@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { ActivityIndicator, View } from 'react-native';
 import WelcomeScreen from './screens/WelcomeScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
 import MainScreen from './screens/MainScreen';
@@ -8,13 +9,26 @@ import SettingsScreen from './screens/SettingsScreen';
 import ReportingScreen from './screens/ReportingScreen';
 import FeedbackScreen from './screens/FeedbackScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  saveUser,
+  loadUser,
+  saveComment,
+  loadCommentHistory,
+  saveCommentedPost,
+  loadCommentedPosts,
+  saveEngagedAccount,
+  loadEngagedAccounts,
+} from './lib/supabase';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
+  const [loading, setLoading] = useState(true);
   const [showWelcome, setShowWelcome] = useState(true);
   const [isOnboarded, setIsOnboarded] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
+  const [userId, setUserId] = useState(null);
   const [commentHistory, setCommentHistory] = useState([]);
   const [selectedComments, setSelectedComments] = useState([]);
   const [commentCount, setCommentCount] = useState(0);
@@ -37,16 +51,67 @@ export default function App() {
     business: 999,
   };
 
-  const handleOnboardingComplete = (profile) => {
+  useEffect(() => {
+    checkExistingUser();
+  }, []);
+
+  const checkExistingUser = async () => {
+    try {
+      const savedEmail = await AsyncStorage.getItem('userEmail');
+      if (savedEmail) {
+        const profile = await loadUser(savedEmail);
+        if (profile) {
+          setUserProfile(profile);
+          setUserId(profile.id);
+          setTier(profile.tier || 'starter');
+          setIsOnboarded(true);
+          setShowWelcome(false);
+
+          const history = await loadCommentHistory(profile.id);
+          setCommentHistory(history);
+          setSelectedComments(history.map((h) => h.selected));
+          setCommentCount(history.length);
+
+          const commented = await loadCommentedPosts(profile.id);
+          setCommentedPostUrls(commented);
+
+          const engaged = await loadEngagedAccounts(profile.id);
+          setEngagedAccounts(engaged);
+        }
+      }
+    } catch (error) {
+      console.error('Load user error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOnboardingComplete = async (profile) => {
     setUserProfile(profile);
     setIsOnboarded(true);
+
+    try {
+      const saved = await saveUser(profile);
+      if (saved) {
+        setUserId(saved.id);
+        await AsyncStorage.setItem('userEmail', profile.email);
+      }
+    } catch (error) {
+      console.error('Save user error:', error);
+    }
   };
 
-  const handleProfileUpdate = (updated) => {
+  const handleProfileUpdate = async (updated) => {
     setUserProfile(updated);
+
+    try {
+      await saveUser({ ...updated, tier });
+    } catch (error) {
+      console.error('Update user error:', error);
+    }
   };
 
-  const handleCommentUsed = (comment, allOptions, postCaption, postUrl, accountUsername) => {
+  const handleCommentUsed = async (comment, allOptions, postCaption, postUrl, accountUsername) => {
     const entry = {
       id: Date.now().toString(),
       selected: comment,
@@ -78,6 +143,16 @@ export default function App() {
         )
       );
     }
+
+    if (userId) {
+      try {
+        await saveComment(userId, comment, allOptions, postCaption, postUrl, accountUsername);
+        if (postUrl) await saveCommentedPost(userId, postUrl);
+        if (accountUsername) await saveEngagedAccount(userId, accountUsername);
+      } catch (error) {
+        console.error('Save to Supabase error:', error);
+      }
+    }
   };
 
   const handleDiscoveryUsed = () => {
@@ -95,6 +170,14 @@ export default function App() {
     if (lastDiscoveryDate !== today) return discoveryLimits[tier];
     return Math.max(0, discoveryLimits[tier] - discoveryCount);
   };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator color="#4f8ef7" size="large" />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer>
