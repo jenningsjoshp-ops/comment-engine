@@ -291,38 +291,19 @@ Generate exactly 3 different comments for the given post. Each should have a dif
     setComments([]);
   };
 
-  const selectComment = async (comment, index) => {
+const selectComment = async (comment, index) => {
     await Clipboard.setStringAsync(comment);
     setCopiedIndex(index);
     onCommentUsed(comment, comments, selectedPost.caption, selectedPost.url, selectedPost.username);
     setCompletedPosts((prev) => [...prev, selectedPost.url]);
+    const url = selectedPost.url;
 
     setTimeout(() => {
       setCopiedIndex(null);
-      Alert.alert(
-        'Comment copied!',
-        'Open Instagram to paste your comment?',
-        [
-          {
-            text: 'Open Instagram',
-            onPress: () => {
-              Linking.openURL(selectedPost.url || 'instagram://');
-              setTimeout(() => {
-                setSelectedPost(null);
-                setComments([]);
-              }, 500);
-            },
-          },
-          {
-            text: 'Next post',
-            onPress: () => {
-              setSelectedPost(null);
-              setComments([]);
-            },
-          },
-        ]
-      );
-    }, 500);
+      setSelectedPost(null);
+      setComments([]);
+      Linking.openURL(url || 'instagram://');
+    }, 1000);
   };
 
   const availablePosts = posts.filter(
