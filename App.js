@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import WelcomeScreen from './screens/WelcomeScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
 import MainScreen from './screens/MainScreen';
 import SettingsScreen from './screens/SettingsScreen';
@@ -11,6 +12,7 @@ import DiscoverScreen from './screens/DiscoverScreen';
 const Stack = createNativeStackNavigator();
 
 export default function App() {
+  const [showWelcome, setShowWelcome] = useState(true);
   const [isOnboarded, setIsOnboarded] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [commentHistory, setCommentHistory] = useState([]);
@@ -97,7 +99,13 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!isOnboarded ? (
+        {showWelcome ? (
+          <Stack.Screen name="Welcome">
+            {(props) => (
+              <WelcomeScreen {...props} onComplete={() => setShowWelcome(false)} />
+            )}
+          </Stack.Screen>
+        ) : !isOnboarded ? (
           <Stack.Screen name="Onboarding">
             {(props) => (
               <OnboardingScreen {...props} onComplete={handleOnboardingComplete} />

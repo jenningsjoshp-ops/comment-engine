@@ -406,9 +406,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
                 <Text style={styles.buttonText}>Next</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => setStep(4)} style={styles.skipButton}>
-              <Text style={styles.skipText}>I don't have Instagram</Text>
-            </TouchableOpacity>
+         
           </View>
         );
 
