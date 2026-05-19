@@ -8,7 +8,20 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
+
+// Alert.alert is a no-op on web — use window.confirm as fallback
+function confirmAlert(title, message, onConfirm, confirmText = 'Confirm') {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${title}\n\n${message}`)) onConfirm();
+    return;
+  }
+  Alert.alert(title, message, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: confirmText, style: 'destructive', onPress: onConfirm },
+  ]);
+}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APIFY_API_TOKEN } from '../config';
 
@@ -44,13 +57,11 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (savedRef.current || !dirtyRef.current) return;
       e.preventDefault();
-      Alert.alert(
+      confirmAlert(
         'Unsaved changes',
         'Leave without saving?',
-        [
-          { text: 'Keep editing', style: 'cancel' },
-          { text: 'Discard', style: 'destructive', onPress: () => navigation.dispatch(e.data.action) },
-        ]
+        () => navigation.dispatch(e.data.action),
+        'Discard'
       );
     });
     return unsubscribe;
@@ -230,13 +241,11 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
   };
 
   const handleLogOut = () => {
-    Alert.alert(
+    confirmAlert(
       'Log Out',
       'This will clear your session and reset all data so you can start fresh.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Log Out', style: 'destructive', onPress: onLogOut },
-      ]
+      onLogOut,
+      'Log Out'
     );
   };
 
