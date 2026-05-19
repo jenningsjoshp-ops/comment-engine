@@ -267,16 +267,18 @@ Generate exactly 3 different comments for the given post. Each should have a dif
   };
 
   const selectComment = async (comment, index) => {
+    const url = postUrl; // capture before any state changes
     await Clipboard.setStringAsync(comment);
     setCopiedIndex(index);
-    onCommentUsed(comment, comments, currentCaption, postUrl);
-    const url = postUrl;
+    onCommentUsed(comment, comments, currentCaption, url);
     setPostUrl('');
 
     setTimeout(() => {
       setCopiedIndex(null);
       setComments([]);
-      Linking.openURL(url || 'instagram://');
+      Linking.openURL(url || 'instagram://').catch(() =>
+        Linking.openURL('instagram://')
+      );
     }, 1000);
   };
 

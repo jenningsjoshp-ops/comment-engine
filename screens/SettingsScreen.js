@@ -12,8 +12,6 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APIFY_API_TOKEN } from '../config';
 
-const SLIDER_STEPS = [1, 2, 3, 4, 5];
-
 const TIER_INFO = {
   starter: { name: 'Starter', price: '$5/mo', limit: '20 comments/month' },
   growth: { name: 'Growth', price: '$15/mo', limit: '150 comments/month' },
@@ -40,6 +38,12 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
 
   const setSlider = (id, value) => {
     setSliderValues((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const getSliderLabel = (slider, value) => {
+    if (value <= 2) return slider.left;
+    if (value >= 4) return slider.right;
+    return 'Balanced';
   };
 
   const isValidEmail = (e) => {
@@ -409,24 +413,34 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
       {sliders.map((slider) => (
         <View key={slider.id} style={styles.sliderContainer}>
           <View style={styles.sliderLabels}>
-            <Text style={styles.sliderLeft}>{slider.left}</Text>
-            <Text style={styles.sliderRight}>{slider.right}</Text>
+            <Text style={[styles.sliderLeft, (sliderValues[slider.id] || 3) <= 2 && styles.sliderActive]}>
+              {slider.left}
+            </Text>
+            <Text style={[styles.sliderRight, (sliderValues[slider.id] || 3) >= 4 && styles.sliderActive]}>
+              {slider.right}
+            </Text>
           </View>
-          <View style={styles.sliderDots}>
-            {SLIDER_STEPS.map((val) => (
+          <View style={styles.sliderTrack}>
+            {[1, 2, 3, 4, 5].map((val) => (
               <TouchableOpacity
                 key={slider.id + '-' + val}
-                style={[styles.dot, (sliderValues[slider.id] || 3) === val && styles.dotSelected]}
+                style={[
+                  styles.sliderDot,
+                  (sliderValues[slider.id] || 3) === val && styles.sliderDotSelected,
+                ]}
                 onPress={() => setSlider(slider.id, val)}
-              >
-                <Text
-                  style={[styles.dotText, (sliderValues[slider.id] || 3) === val && styles.dotTextSelected]}
-                >
-                  {val}
-                </Text>
-              </TouchableOpacity>
+              />
             ))}
+            <View
+              style={[
+                styles.sliderFill,
+                { width: `${((sliderValues[slider.id] || 3) - 1) * 25}%` },
+              ]}
+            />
           </View>
+          <Text style={styles.sliderCurrent}>
+            {getSliderLabel(slider, sliderValues[slider.id] || 3)}
+          </Text>
         </View>
       ))}
 
@@ -669,42 +683,59 @@ const styles = StyleSheet.create({
   sliderLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   sliderLeft: {
-    color: '#999',
-    fontSize: 13,
-  },
-  sliderRight: {
-    color: '#999',
-    fontSize: 13,
-  },
-  sliderDots: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-  },
-  dot: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dotSelected: {
-    backgroundColor: '#4f8ef7',
-    borderColor: '#4f8ef7',
-  },
-  dotText: {
     color: '#666',
     fontSize: 14,
   },
-  dotTextSelected: {
-    color: '#fff',
+  sliderRight: {
+    color: '#666',
+    fontSize: 14,
+  },
+  sliderActive: {
+    color: '#4f8ef7',
     fontWeight: '600',
+  },
+  sliderTrack: {
+    height: 6,
+    backgroundColor: '#333',
+    borderRadius: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 0,
+    position: 'relative',
+  },
+  sliderFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: 6,
+    backgroundColor: '#4f8ef7',
+    borderRadius: 3,
+  },
+  sliderDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#333',
+    borderWidth: 2,
+    borderColor: '#444',
+    zIndex: 1,
+  },
+  sliderDotSelected: {
+    backgroundColor: '#4f8ef7',
+    borderColor: '#4f8ef7',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  sliderCurrent: {
+    color: '#4f8ef7',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 8,
   },
   goalOptions: {
     flexDirection: 'row',

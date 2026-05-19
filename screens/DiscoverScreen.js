@@ -165,7 +165,14 @@ export default function DiscoverScreen({
 
       // 3. Check daily limit before hitting Apify
       if (discoveryRemaining <= 0) {
-        Alert.alert('No sessions left today', "You've used your discovery sessions for today. Come back tomorrow!");
+        Alert.alert(
+          'No sessions left today',
+          "You've used your discovery sessions for today. Upgrade for more daily sessions or come back tomorrow.",
+          [
+            { text: 'Upgrade', onPress: () => navigation.navigate('Settings') },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
         return;
       }
 

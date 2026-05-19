@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator, Alert, Animated, Linking,
+  Alert, Animated, Linking,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { ANTHROPIC_API_KEY, APIFY_API_TOKEN } from '../config';
@@ -53,19 +53,58 @@ function classifyError(error) {
 export default function InboxScreen({ navigation, userProfile, tier, selectedComments }) {
   const [inboxItems, setInboxItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [loadingPhase, setLoadingPhase] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
   const [replies, setReplies] = useState([]);
   const [generatingReplies, setGeneratingReplies] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const progressIntervalRef = useRef(null);
 
   useEffect(() => {
     fetchInbox();
+    return () => {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    };
   }, []);
+
+  const startProgress = () => {
+    setLoadProgress(0);
+    setLoadingPhase('loading');
+    let p = 0;
+    progressIntervalRef.current = setInterval(() => {
+      p += 1;
+      if (p >= 80) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      setLoadProgress(p);
+    }, 112);
+  };
+
+  const finishProgress = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    setLoadingPhase('filtering');
+    setLoadProgress(100);
+  };
+
+  const resetProgress = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    setLoadProgress(0);
+    setLoadingPhase('');
+  };
 
   const fetchInbox = async () => {
     const handle = userProfile?.igHandle;
     if (!handle) return;
 
+    startProgress();
     setLoading(true);
     try {
       const response = await fetch(
@@ -82,6 +121,8 @@ export default function InboxScreen({ navigation, userProfile, tier, selectedCom
       );
       const data = await response.json();
 
+      finishProgress();
+
       if (data && data.length === 0) {
         Alert.alert(
           'No posts found',
@@ -93,7 +134,12 @@ export default function InboxScreen({ navigation, userProfile, tier, selectedCom
       if (data && data.length > 0) {
         const allComments = [];
         data.forEach((post) => {
-          (post.latestComments || []).forEach((c) => {
+          const comments = post.latestComments || [];
+          // Skip posts where the user already replied
+          const alreadyReplied = comments.some((c) => c.ownerUsername === handle);
+          if (alreadyReplied) return;
+
+          comments.forEach((c) => {
             if (c.ownerUsername !== handle && c.text) {
               allComments.push({
                 id: c.id || `${post.url}-${c.ownerUsername}-${allComments.length}`,
@@ -116,6 +162,7 @@ export default function InboxScreen({ navigation, userProfile, tier, selectedCom
       await logError({ screen: 'InboxScreen', action: 'fetchInbox', message: error.message, userId: userProfile?.id });
     } finally {
       setLoading(false);
+      resetProgress();
     }
   };
 
@@ -259,8 +306,13 @@ Generate exactly 3 different reply options to the comment below. Each should hav
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color="#4f8ef7" size="large" />
+        <View style={styles.progressContainer}>
+          <Text style={styles.phaseLabel}>
+            {loadingPhase === 'filtering' ? 'Filtering your inbox...' : 'Checking your comment inbox...'}
+          </Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${loadProgress}%` }]} />
+          </View>
           <LoadingMessages messages={INBOX_MESSAGES} />
         </View>
       ) : inboxItems.length === 0 ? (
@@ -312,6 +364,10 @@ const styles = StyleSheet.create({
   commentCardText: { color: '#ccc', fontSize: 15, lineHeight: 22, marginBottom: 8 },
   tapHint: { color: '#555', fontSize: 12, textAlign: 'right' },
   loadingContainer: { alignItems: 'center', marginTop: 60 },
+  progressContainer: { alignItems: 'center', marginTop: 60, paddingHorizontal: 8 },
+  phaseLabel: { color: '#fff', fontSize: 15, fontWeight: '600', marginBottom: 16, textAlign: 'center' },
+  progressTrack: { width: '100%', height: 6, backgroundColor: '#1a1a1a', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: '#4f8ef7', borderRadius: 3 },
   emptyState: { alignItems: 'center', marginTop: 60 },
   emptyTitle: { fontSize: 22, fontWeight: '600', color: '#fff', marginBottom: 12 },
   emptySubtitle: { fontSize: 15, color: '#666', textAlign: 'center', lineHeight: 22, marginBottom: 24 },

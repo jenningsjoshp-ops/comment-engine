@@ -40,7 +40,9 @@ export default function QueueScreen({ navigation, queue, onDone }) {
         </View>
       ) : (
         <>
-          <Text style={styles.hint}>Copy each comment, open the post, paste it in. Tap Done when posted.</Text>
+          <Text style={styles.hint}>
+            Your comment queue. Tap Copy to grab a comment, then Open Post to go to Instagram. Mark Done when you've posted it.
+          </Text>
           {queue.map((item) => {
             const copied = copiedIds.has(item.id);
             return (
@@ -61,12 +63,15 @@ export default function QueueScreen({ navigation, queue, onDone }) {
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.actionBtn, styles.openBtn]} onPress={() => handleOpen(item)}>
-                    <Text style={styles.openBtnText}>Open Post</Text>
+                    <Text style={styles.openBtnText}>Open @{item.username}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={[styles.actionBtn, styles.doneBtn]} onPress={() => onDone(item.id)}>
                     <Text style={styles.doneBtnText}>Done ✓</Text>
                   </TouchableOpacity>
                 </View>
+                <Text style={styles.wrongPostNote}>
+                  If Instagram shows the wrong post, close Instagram and tap Open @{item.username} again.
+                </Text>
               </View>
             );
           })}
@@ -125,7 +130,8 @@ const styles = StyleSheet.create({
   copyBtnText: { color: '#4f8ef7', fontSize: 13, fontWeight: '600' },
   copyBtnTextDone: { color: '#4caf50' },
   openBtn: { backgroundColor: '#2a2a2a', borderColor: '#555' },
-  openBtnText: { color: '#ccc', fontSize: 13, fontWeight: '600' },
+  openBtnText: { color: '#ccc', fontSize: 12, fontWeight: '600' },
+  wrongPostNote: { color: '#444', fontSize: 11, marginTop: 10, lineHeight: 16 },
   doneBtn: { backgroundColor: '#1a1a1a', borderColor: '#333' },
   doneBtnText: { color: '#555', fontSize: 13, fontWeight: '600' },
 });

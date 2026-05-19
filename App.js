@@ -147,9 +147,11 @@ export default function App() {
   const handleProfileUpdate = async (updated) => {
     setUserProfile(updated);
     if (updated.dailyGoal !== undefined) setDailyGoal(updated.dailyGoal);
+    if (updated.igHandle) setSkippedOnboarding(false);
 
     try {
       await saveUser({ ...updated, tier });
+      if (updated.email) await AsyncStorage.setItem('userEmail', updated.email);
     } catch (error) {
       console.error('Update user error:', error);
     }
