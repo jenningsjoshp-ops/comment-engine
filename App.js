@@ -223,10 +223,19 @@ export default function App() {
   const handleDiscoveryUsed = () => {
     const today = new Date().toDateString();
     if (lastDiscoveryDate !== today) {
+      // Explicitly reset to 0 for the new day, then count this session as 1
       setDiscoveryCount(1);
       setLastDiscoveryDate(today);
     } else {
       setDiscoveryCount((prev) => prev + 1);
+    }
+  };
+
+  const resetDiscoveryIfNewDay = () => {
+    const today = new Date().toDateString();
+    if (lastDiscoveryDate && lastDiscoveryDate !== today) {
+      setDiscoveryCount(0);
+      setLastDiscoveryDate(null);
     }
   };
 
@@ -383,6 +392,10 @@ export default function App() {
                     setDiscoveryCache={setDiscoveryCache}
                     engagedAccounts={engagedAccounts}
                     discoveryRemaining={getDiscoveryRemaining()}
+                    discoveryCount={discoveryCount}
+                    lastDiscoveryDate={lastDiscoveryDate}
+                    dailyDiscoveryLimit={discoveryLimits[tier]}
+                    onResetDiscovery={resetDiscoveryIfNewDay}
                   />
                 )}
               </Stack.Screen>

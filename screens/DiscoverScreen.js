@@ -74,6 +74,10 @@ export default function DiscoverScreen({
   setDiscoveryCache,
   engagedAccounts,
   discoveryRemaining,
+  discoveryCount,
+  lastDiscoveryDate,
+  dailyDiscoveryLimit,
+  onResetDiscovery,
 }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -163,8 +167,13 @@ export default function DiscoverScreen({
         }
       }
 
-      // 3. Check daily limit before hitting Apify
-      if (discoveryRemaining <= 0) {
+      // 3. Check daily limit before hitting Apify — compute fresh to avoid stale prop/closure
+      const today = new Date().toDateString();
+      if (onResetDiscovery) onResetDiscovery(); // reset count if it's a new day
+      const freshRemaining = (lastDiscoveryDate !== today)
+        ? dailyDiscoveryLimit
+        : Math.max(0, dailyDiscoveryLimit - discoveryCount);
+      if (freshRemaining <= 0) {
         Alert.alert(
           'No sessions left today',
           "You've used your discovery sessions for today. Upgrade for more daily sessions or come back tomorrow.",
