@@ -250,6 +250,34 @@ export default function App() {
     setShowRatingPrompt(false);
   };
 
+  const handleLogOut = async () => {
+    try {
+      await AsyncStorage.removeItem('userEmail');
+      await AsyncStorage.removeItem('ratingPromptShown');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    setUserProfile(null);
+    setUserId(null);
+    setIsOnboarded(false);
+    setShowWelcome(true);
+    setCommentHistory([]);
+    setSelectedComments([]);
+    setCommentCount(0);
+    setTier('starter');
+    setDiscoveryCount(0);
+    setLastDiscoveryDate(null);
+    setCommentedPostUrls([]);
+    setDiscoveryCache({});
+    setEngagedAccounts([]);
+    setTodayCommentCount(0);
+    setDailyGoal(10);
+    setStreak(0);
+    setLastGoalDate(null);
+    setCommentQueue([]);
+    setShowRatingPrompt(false);
+  };
+
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center' }}>
@@ -342,6 +370,7 @@ export default function App() {
                     tier={tier}
                     onUpgrade={setTier}
                     dailyGoal={dailyGoal}
+                    onLogOut={handleLogOut}
                   />
                 )}
               </Stack.Screen>

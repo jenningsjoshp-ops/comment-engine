@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APIFY_API_TOKEN } from '../config';
 
 const SLIDER_STEPS = [1, 2, 3, 4, 5];
@@ -21,7 +22,7 @@ const TIER_INFO = {
 
 const GOAL_OPTIONS = [5, 10, 15, 20];
 
-export default function SettingsScreen({ navigation, userProfile, onUpdate, tier, onUpgrade, dailyGoal }) {
+export default function SettingsScreen({ navigation, userProfile, onUpdate, tier, onUpgrade, dailyGoal, onLogOut }) {
   const [goalValue, setGoalValue] = useState(dailyGoal || userProfile?.dailyGoal || 10);
   const [sliderValues, setSliderValues] = useState(userProfile?.sliderValues || {});
   const [name, setName] = useState(userProfile?.name || '');
@@ -194,6 +195,17 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
     });
 
     navigation.goBack();
+  };
+
+  const handleLogOut = () => {
+    Alert.alert(
+      'Log Out',
+      'This will clear your session and reset all data so you can start fresh.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Log Out', style: 'destructive', onPress: onLogOut },
+      ]
+    );
   };
 
   const handleUpgrade = (newTier) => {
@@ -412,6 +424,10 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
 
       <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
         <Text style={styles.saveButtonText}>Save Changes</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.logOutButton} onPress={handleLogOut}>
+        <Text style={styles.logOutButtonText}>Log Out</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -719,11 +735,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 16,
-    marginBottom: 40,
+    marginBottom: 12,
   },
   saveButtonText: {
     color: '#fff',
     fontSize: 18,
+    fontWeight: '600',
+  },
+  logOutButton: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 40,
+    borderWidth: 1,
+    borderColor: '#ff4444',
+  },
+  logOutButtonText: {
+    color: '#ff4444',
+    fontSize: 16,
     fontWeight: '600',
   },
 });

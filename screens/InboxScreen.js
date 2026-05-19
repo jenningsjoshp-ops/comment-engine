@@ -59,7 +59,7 @@ export default function InboxScreen({ navigation, userProfile, tier, selectedCom
   const [copiedIndex, setCopiedIndex] = useState(null);
 
   useEffect(() => {
-    if (tier === 'business') fetchInbox();
+    fetchInbox();
   }, []);
 
   const fetchInbox = async () => {
@@ -202,31 +202,6 @@ Generate exactly 3 different reply options to the comment below. Each should hav
       Linking.openURL(url || 'instagram://');
     }, 1000);
   };
-
-  // Business-tier gate
-  if (tier !== 'business') {
-    return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backText}>Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Reply Inbox</Text>
-          <View style={{ width: 50 }} />
-        </View>
-        <View style={styles.gateContainer}>
-          <Text style={styles.gateIcon}>💬</Text>
-          <Text style={styles.gateTitle}>Business Feature</Text>
-          <Text style={styles.gateSubtitle}>
-            Reply Inbox is available on the Business plan ($50/mo). Upgrade to reply to comments on your own posts using AI-generated brand-voice replies.
-          </Text>
-          <TouchableOpacity style={styles.upgradeButton} onPress={() => navigation.navigate('Settings')}>
-            <Text style={styles.upgradeButtonText}>Upgrade to Business</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
 
   // Reply view
   if (selectedItem && (replies.length > 0 || generatingReplies)) {
