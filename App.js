@@ -70,7 +70,12 @@ export default function App() {
           const history = await loadCommentHistory(profile.id);
           setCommentHistory(history);
           setSelectedComments(history.map((h) => h.selected));
-          setCommentCount(history.length);
+          const now = new Date();
+          const monthlyCount = history.filter((h) => {
+            const d = new Date(h.timestamp);
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+          }).length;
+          setCommentCount(monthlyCount);
 
           const commented = await loadCommentedPosts(profile.id);
           setCommentedPostUrls(commented);
@@ -225,6 +230,7 @@ export default function App() {
                   discoveryCache={discoveryCache}
                   setDiscoveryCache={setDiscoveryCache}
                   engagedAccounts={engagedAccounts}
+                  discoveryRemaining={getDiscoveryRemaining()}
                 />
               )}
             </Stack.Screen>

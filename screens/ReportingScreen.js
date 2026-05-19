@@ -8,7 +8,7 @@ import {
    Linking,
 } from 'react-native';
 
-export default function ReportingScreen({ navigation, commentHistory, commentCount, tier, tierLimit }) {
+export default function ReportingScreen({ navigation, commentHistory, commentCount, tier, tierLimit, engagedAccounts = [] }) {
   const todayCount = commentHistory.filter((c) => {
     const today = new Date().toDateString();
     return new Date(c.timestamp).toDateString() === today;
@@ -113,6 +113,18 @@ export default function ReportingScreen({ navigation, commentHistory, commentCou
                   </View>
                 ))}
               </View>
+            </View>
+          )}
+
+          {engagedAccounts.length > 0 && (
+            <View style={styles.historySection}>
+              <Text style={styles.sectionTitle}>Accounts You Engage With</Text>
+              {engagedAccounts.slice(0, 10).map((acct) => (
+                <View key={acct.username} style={styles.accountRow}>
+                  <Text style={styles.accountUsername}>@{acct.username}</Text>
+                  <Text style={styles.accountCount}>{acct.count} comment{acct.count !== 1 ? 's' : ''}</Text>
+                </View>
+              ))}
             </View>
           )}
 
@@ -305,5 +317,21 @@ const styles = StyleSheet.create({
     color: '#4f8ef7',
     fontSize: 13,
     marginTop: 6,
+  },
+  accountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#222',
+  },
+  accountUsername: {
+    color: '#4f8ef7',
+    fontSize: 14,
+  },
+  accountCount: {
+    color: '#666',
+    fontSize: 13,
   },
 });

@@ -263,6 +263,10 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
       });
 
       const data = await response.json();
+      if (!data.content?.[0]?.text) {
+        setPreviewComment('Could not generate preview. You can adjust settings later.');
+        return;
+      }
       setPreviewComment(data.content[0].text);
     } catch (error) {
       console.error('Preview failed:', error);

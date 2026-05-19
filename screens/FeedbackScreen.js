@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { saveFeedback } from '../lib/supabase';
 import {
   View,
   Text,
@@ -23,23 +24,20 @@ export default function FeedbackScreen({ navigation, userProfile }) {
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!feedbackType || !message.trim()) {
       Alert.alert('Missing info', 'Pick a category and write your message.');
       return;
     }
 
-    const feedback = {
+    await saveFeedback({
       type: feedbackType,
       message: message.trim(),
       user: userProfile?.name || 'Unknown',
       email: userProfile?.email || 'Unknown',
       igHandle: userProfile?.igHandle || 'Unknown',
       tier: userProfile?.accountType || 'Unknown',
-      timestamp: new Date().toISOString(),
-    };
-
-    console.log('FEEDBACK SUBMITTED:', JSON.stringify(feedback));
+    });
 
     setSubmitted(true);
   };

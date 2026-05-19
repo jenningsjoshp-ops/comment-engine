@@ -233,7 +233,7 @@ Generate exactly 3 different comments for the given post. Each should have a dif
     }
   };
 
-const selectComment = async (comment, index) => {
+  const selectComment = async (comment, index) => {
     await Clipboard.setStringAsync(comment);
     setCopiedIndex(index);
     onCommentUsed(comment, comments, currentCaption, postUrl);

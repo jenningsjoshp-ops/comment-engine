@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { ANTHROPIC_API_KEY, APIFY_API_TOKEN } from '../config';
+import { saveDiscoveryCache, loadDiscoveryCache } from '../lib/supabase';
 
 function LoadingMessages({ messages }) {
   const [index, setIndex] = useState(0);
@@ -82,6 +83,7 @@ export default function DiscoverScreen({
   discoveryCache,
   setDiscoveryCache,
   engagedAccounts,
+  discoveryRemaining,
 }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -109,6 +111,8 @@ export default function DiscoverScreen({
 
   const discoverPosts = async () => {
     const cacheKey = getCacheKey();
+
+    // 1. In-memory cache (free, no session consumed)
     if (discoveryCache[cacheKey]) {
       const cached = discoveryCache[cacheKey].filter(
         (p) => !commentedPostUrls.includes(p.url) && !completedPosts.includes(p.url) && !skippedPosts.includes(p.url)
@@ -121,6 +125,26 @@ export default function DiscoverScreen({
 
     setLoading(true);
     try {
+      // 2. Supabase persistent cache (free, survives app restarts)
+      const supabaseCached = await loadDiscoveryCache(cacheKey);
+      if (supabaseCached) {
+        const filtered = supabaseCached.filter(
+          (p) => !commentedPostUrls.includes(p.url) && !completedPosts.includes(p.url) && !skippedPosts.includes(p.url)
+        );
+        if (filtered.length > 0) {
+          setDiscoveryCache((prev) => ({ ...prev, [cacheKey]: supabaseCached }));
+          setPosts(filtered);
+          return;
+        }
+      }
+
+      // 3. Check daily limit before hitting Apify
+      if (discoveryRemaining <= 0) {
+        Alert.alert('No sessions left today', 'You\'ve used your discovery sessions for today. Come back tomorrow!');
+        return;
+      }
+
+      // 4. Fetch fresh from Apify
       const tagsToSearch = hashtags.slice(0, 5);
       const allPosts = [];
 
@@ -150,12 +174,14 @@ export default function DiscoverScreen({
         .filter((p) => {
           const likes = p.likesCount || 0;
           const commentsCt = p.commentsCount || 0;
+          const followers = p.ownerFollowersCount || 0;
           const url = p.url || '';
           const isOwn = p.ownerUsername === userProfile?.igHandle;
           return (
             likes >= 50 &&
             likes <= 10000 &&
             commentsCt < 50 &&
+            (followers === 0 || followers <= 100000) &&
             url &&
             !isOwn &&
             !commentedPostUrls.includes(url)
@@ -183,6 +209,7 @@ export default function DiscoverScreen({
         }));
 
       setDiscoveryCache((prev) => ({ ...prev, [cacheKey]: filtered }));
+      await saveDiscoveryCache(cacheKey, filtered);
       setPosts(filtered);
       onDiscoveryUsed();
     } catch (error) {
@@ -402,7 +429,7 @@ const selectComment = async (comment, index) => {
 
           {availablePosts.map((post, index) => (
             <TouchableOpacity
-              key={post.url + index}
+              key={post.url}
               style={styles.postCard}
               onPress={() => generateForPost(post)}
               disabled={generatingComments}
