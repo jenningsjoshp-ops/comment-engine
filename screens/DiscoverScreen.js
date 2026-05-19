@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { ANTHROPIC_API_KEY, APIFY_API_TOKEN } from '../config';
-import { saveDiscoveryCache, loadDiscoveryCache } from '../lib/supabase';
+import { saveDiscoveryCache, loadDiscoveryCache, logError } from '../lib/supabase';
 
 function LoadingMessages({ messages }) {
   const [index, setIndex] = useState(0);
@@ -214,7 +214,12 @@ export default function DiscoverScreen({
       onDiscoveryUsed();
     } catch (error) {
       console.error('Discovery failed:', error);
-      Alert.alert('Discovery failed', 'Something went wrong finding posts. Try again.');
+      const isNetwork = error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch');
+      Alert.alert(
+        isNetwork ? 'Check your internet connection' : 'Instagram is being difficult right now',
+        isNetwork ? 'Check your internet connection and try again.' : 'Try again in a minute.'
+      );
+      await logError({ screen: 'DiscoverScreen', action: 'discoverPosts', message: error.message, userId: userProfile?.id });
     } finally {
       setLoading(false);
     }
@@ -287,7 +292,7 @@ Generate exactly 3 different comments for the given post. Each should have a dif
       const data = await response.json();
 
       if (!data.content || !data.content[0]) {
-        Alert.alert('AI hiccup', 'The comment engine had a moment. Try again.');
+        Alert.alert('Our comment engine is taking a break.', 'Try again shortly.');
         setGeneratingComments(false);
         return;
       }
@@ -297,8 +302,12 @@ Generate exactly 3 different comments for the given post. Each should have a dif
       const parsed = JSON.parse(cleaned);
       setComments(parsed);
     } catch (error) {
-      Alert.alert('Couldn\'t generate comments', 'Something went wrong. Try again.');
-      console.error(error);
+      const isNetwork = error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch');
+      Alert.alert(
+        isNetwork ? 'Check your internet connection' : 'Our comment engine is taking a break.',
+        isNetwork ? 'Check your internet connection and try again.' : 'Try again shortly.'
+      );
+      await logError({ screen: 'DiscoverScreen', action: 'generateForPost', message: error.message, userId: userProfile?.id });
     } finally {
       setGeneratingComments(false);
     }

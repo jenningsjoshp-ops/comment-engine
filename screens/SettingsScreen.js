@@ -19,7 +19,10 @@ const TIER_INFO = {
   business: { name: 'Business', price: '$50/mo', limit: '500 comments/month' },
 };
 
-export default function SettingsScreen({ navigation, userProfile, onUpdate, tier, onUpgrade }) {
+const GOAL_OPTIONS = [5, 10, 15, 20];
+
+export default function SettingsScreen({ navigation, userProfile, onUpdate, tier, onUpgrade, dailyGoal }) {
+  const [goalValue, setGoalValue] = useState(dailyGoal || userProfile?.dailyGoal || 10);
   const [sliderValues, setSliderValues] = useState(userProfile?.sliderValues || {});
   const [name, setName] = useState(userProfile?.name || '');
   const [email, setEmail] = useState(userProfile?.email || '');
@@ -136,12 +139,21 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
 
         setHashtags(mergedHashtags);
         Alert.alert('Voice refreshed', `Pulled ${captions.length} new posts and ${newHashtags.length} hashtags.`);
+      } else if (data && data.length === 0) {
+        Alert.alert(
+          'Account may be private',
+          'CommentEngine only works with public profiles. Check your account privacy settings.'
+        );
       } else {
         Alert.alert('Could not refresh', 'Couldn\'t find posts for that handle.');
       }
     } catch (error) {
       console.error('Refresh failed:', error);
-      Alert.alert('Refresh failed', 'Something went wrong. Try again.');
+      const isNetwork = error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch');
+      Alert.alert(
+        isNetwork ? 'Check your internet connection' : 'Instagram is being difficult right now',
+        isNetwork ? 'Check your internet connection and try again.' : 'Try again in a minute.'
+      );
     } finally {
       setRefreshing(false);
     }
@@ -178,6 +190,7 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
       igHandle: igHandle.replace('@', ''),
       referenceUrls: urlContents,
       hashtags,
+      dailyGoal: goalValue,
     });
 
     navigation.goBack();
@@ -348,6 +361,25 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
           <Text style={styles.addUrlText}>+ Add another URL</Text>
         </TouchableOpacity>
       )}
+
+      <Text style={styles.sectionTitle}>Daily Comment Goal</Text>
+      <Text style={styles.sectionSubtitle}>Hit this many comments to keep your streak going</Text>
+      <View style={styles.goalOptions}>
+        {GOAL_OPTIONS.map((opt) => (
+          <TouchableOpacity
+            key={opt}
+            style={[styles.goalOption, goalValue === opt && styles.goalOptionSelected]}
+            onPress={() => setGoalValue(opt)}
+          >
+            <Text style={[styles.goalOptionText, goalValue === opt && styles.goalOptionTextSelected]}>
+              {opt}
+            </Text>
+            <Text style={[styles.goalOptionLabel, goalValue === opt && styles.goalOptionTextSelected]}>
+              /day
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <Text style={styles.sectionTitle}>Voice Settings</Text>
       <Text style={styles.sectionSubtitle}>
@@ -649,6 +681,37 @@ const styles = StyleSheet.create({
   dotTextSelected: {
     color: '#fff',
     fontWeight: '600',
+  },
+  goalOptions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8,
+  },
+  goalOption: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  goalOptionSelected: {
+    backgroundColor: '#1a3a1a',
+    borderColor: '#4caf50',
+  },
+  goalOptionText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  goalOptionLabel: {
+    color: '#666',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  goalOptionTextSelected: {
+    color: '#4caf50',
   },
   saveButton: {
     backgroundColor: '#4f8ef7',

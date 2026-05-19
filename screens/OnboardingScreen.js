@@ -160,12 +160,18 @@ export default function OnboardingScreen({ onComplete }) {
         });
         setExtractedHashtags(hashtags);
         setSelectedHashtags(hashtags);
+      } else if (data && data.length === 0) {
+        setIgError('This account may be private. CommentEngine only works with public profiles.');
       } else {
         setIgError('Couldn\'t find that account. Check the spelling and try again.');
       }
     } catch (error) {
       console.error('Failed to fetch IG:', error);
-      setIgError('Something went wrong. Check your connection and try again.');
+      const isNetwork = error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch');
+      setIgError(isNetwork
+        ? 'Check your internet connection and try again.'
+        : 'Instagram is being difficult right now. Try again in a minute.'
+      );
     } finally {
       setIgLoading(false);
     }

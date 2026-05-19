@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Modal, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
 import WelcomeScreen from './screens/WelcomeScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
 import MainScreen from './screens/MainScreen';
@@ -9,6 +9,7 @@ import SettingsScreen from './screens/SettingsScreen';
 import ReportingScreen from './screens/ReportingScreen';
 import FeedbackScreen from './screens/FeedbackScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
+import InboxScreen from './screens/InboxScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   saveUser,
@@ -19,9 +20,13 @@ import {
   loadCommentedPosts,
   saveEngagedAccount,
   loadEngagedAccounts,
+  saveGoalProgress,
 } from './lib/supabase';
 
 const Stack = createNativeStackNavigator();
+
+// TODO: replace with your App Store ID after submission
+const APP_STORE_URL = 'https://apps.apple.com/app/id0000000000?action=write-review';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -39,17 +44,17 @@ export default function App() {
   const [discoveryCache, setDiscoveryCache] = useState({});
   const [engagedAccounts, setEngagedAccounts] = useState([]);
 
-  const tierLimits = {
-    starter: 20,
-    growth: 150,
-    business: 500,
-  };
+  // Daily goal & streak
+  const [todayCommentCount, setTodayCommentCount] = useState(0);
+  const [dailyGoal, setDailyGoal] = useState(10);
+  const [streak, setStreak] = useState(0);
+  const [lastGoalDate, setLastGoalDate] = useState(null);
 
-  const discoveryLimits = {
-    starter: 1,
-    growth: 5,
-    business: 999,
-  };
+  // Rating prompt
+  const [showRatingPrompt, setShowRatingPrompt] = useState(false);
+
+  const tierLimits = { starter: 20, growth: 150, business: 500 };
+  const discoveryLimits = { starter: 1, growth: 5, business: 999 };
 
   useEffect(() => {
     checkExistingUser();
@@ -67,9 +72,24 @@ export default function App() {
           setIsOnboarded(true);
           setShowWelcome(false);
 
+          // Goal & streak
+          const goal = profile.dailyGoal || 10;
+          setDailyGoal(goal);
+          const today = new Date().toDateString();
+          const yesterday = new Date(Date.now() - 86400000).toDateString();
+          let currentStreak = profile.streak || 0;
+          if (profile.lastGoalDate && profile.lastGoalDate !== today && profile.lastGoalDate !== yesterday) {
+            currentStreak = 0;
+            saveGoalProgress(profile.id, { streak: 0, lastGoalDate: profile.lastGoalDate });
+          }
+          setStreak(currentStreak);
+          setLastGoalDate(profile.lastGoalDate || null);
+
           const history = await loadCommentHistory(profile.id);
           setCommentHistory(history);
           setSelectedComments(history.map((h) => h.selected));
+
+          // Monthly comment count
           const now = new Date();
           const monthlyCount = history.filter((h) => {
             const d = new Date(h.timestamp);
@@ -77,11 +97,21 @@ export default function App() {
           }).length;
           setCommentCount(monthlyCount);
 
+          // Today's comment count for goal tracking
+          const todayCount = history.filter((h) => new Date(h.timestamp).toDateString() === today).length;
+          setTodayCommentCount(todayCount);
+
           const commented = await loadCommentedPosts(profile.id);
           setCommentedPostUrls(commented);
 
           const engaged = await loadEngagedAccounts(profile.id);
           setEngagedAccounts(engaged);
+
+          // Rating prompt — show if ≥10 all-time comments and not yet shown
+          const ratingShown = await AsyncStorage.getItem('ratingPromptShown');
+          if (!ratingShown && history.length >= 10) {
+            setShowRatingPrompt(true);
+          }
         }
       }
     } catch (error) {
@@ -94,6 +124,7 @@ export default function App() {
   const handleOnboardingComplete = async (profile) => {
     setUserProfile(profile);
     setIsOnboarded(true);
+    setDailyGoal(profile.dailyGoal || 10);
 
     try {
       const saved = await saveUser(profile);
@@ -108,6 +139,7 @@ export default function App() {
 
   const handleProfileUpdate = async (updated) => {
     setUserProfile(updated);
+    if (updated.dailyGoal !== undefined) setDailyGoal(updated.dailyGoal);
 
     try {
       await saveUser({ ...updated, tier });
@@ -129,6 +161,19 @@ export default function App() {
     setCommentHistory((prev) => [entry, ...prev]);
     setSelectedComments((prev) => [comment, ...prev]);
     setCommentCount((prev) => prev + 1);
+
+    // Today count + streak check
+    const newTodayCount = todayCommentCount + 1;
+    setTodayCommentCount(newTodayCount);
+
+    const today = new Date().toDateString();
+    if (dailyGoal > 0 && newTodayCount >= dailyGoal && lastGoalDate !== today) {
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      const newStreak = lastGoalDate === yesterday ? streak + 1 : 1;
+      setStreak(newStreak);
+      setLastGoalDate(today);
+      if (userId) saveGoalProgress(userId, { streak: newStreak, lastGoalDate: today });
+    }
 
     if (postUrl && !commentedPostUrls.includes(postUrl)) {
       setCommentedPostUrls((prev) => [...prev, postUrl]);
@@ -158,6 +203,12 @@ export default function App() {
         console.error('Save to Supabase error:', error);
       }
     }
+
+    // Rating prompt — trigger on 10th comment ever
+    if (!showRatingPrompt && commentHistory.length + 1 >= 10) {
+      const ratingShown = await AsyncStorage.getItem('ratingPromptShown');
+      if (!ratingShown) setShowRatingPrompt(true);
+    }
   };
 
   const handleDiscoveryUsed = () => {
@@ -176,6 +227,17 @@ export default function App() {
     return Math.max(0, discoveryLimits[tier] - discoveryCount);
   };
 
+  const handleRateUs = async () => {
+    await AsyncStorage.setItem('ratingPromptShown', 'true');
+    setShowRatingPrompt(false);
+    Linking.openURL(APP_STORE_URL);
+  };
+
+  const handleDismissRating = async () => {
+    await AsyncStorage.setItem('ratingPromptShown', 'true');
+    setShowRatingPrompt(false);
+  };
+
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: '#0a0a0a', justifyContent: 'center', alignItems: 'center' }}>
@@ -185,84 +247,141 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {showWelcome ? (
-          <Stack.Screen name="Welcome">
-            {(props) => (
-              <WelcomeScreen {...props} onComplete={() => setShowWelcome(false)} />
-            )}
-          </Stack.Screen>
-        ) : !isOnboarded ? (
-          <Stack.Screen name="Onboarding">
-            {(props) => (
-              <OnboardingScreen {...props} onComplete={handleOnboardingComplete} />
-            )}
-          </Stack.Screen>
-        ) : (
-          <>
-            <Stack.Screen name="Main">
+    <>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {showWelcome ? (
+            <Stack.Screen name="Welcome">
               {(props) => (
-                <MainScreen
-                  {...props}
-                  userProfile={userProfile}
-                  onCommentUsed={handleCommentUsed}
-                  selectedComments={selectedComments}
-                  commentCount={commentCount}
-                  tierLimit={tierLimits[tier]}
-                  tier={tier}
-                  discoveryRemaining={getDiscoveryRemaining()}
-                />
+                <WelcomeScreen {...props} onComplete={() => setShowWelcome(false)} />
               )}
             </Stack.Screen>
-            <Stack.Screen name="Discover">
+          ) : !isOnboarded ? (
+            <Stack.Screen name="Onboarding">
               {(props) => (
-                <DiscoverScreen
-                  {...props}
-                  userProfile={userProfile}
-                  onCommentUsed={handleCommentUsed}
-                  selectedComments={selectedComments}
-                  commentCount={commentCount}
-                  tierLimit={tierLimits[tier]}
-                  tier={tier}
-                  commentedPostUrls={commentedPostUrls}
-                  onDiscoveryUsed={handleDiscoveryUsed}
-                  discoveryCache={discoveryCache}
-                  setDiscoveryCache={setDiscoveryCache}
-                  engagedAccounts={engagedAccounts}
-                  discoveryRemaining={getDiscoveryRemaining()}
-                />
+                <OnboardingScreen {...props} onComplete={handleOnboardingComplete} />
               )}
             </Stack.Screen>
-            <Stack.Screen name="Settings">
-              {(props) => (
-                <SettingsScreen
-                  {...props}
-                  userProfile={userProfile}
-                  onUpdate={handleProfileUpdate}
-                  tier={tier}
-                  onUpgrade={setTier}
-                />
-              )}
-            </Stack.Screen>
-            <Stack.Screen name="Reporting">
-              {(props) => (
-                <ReportingScreen
-                  {...props}
-                  commentHistory={commentHistory}
-                  commentCount={commentCount}
-                  tier={tier}
-                  tierLimit={tierLimits[tier]}
-                  engagedAccounts={engagedAccounts}
-                />
-              )}
-            </Stack.Screen>
-            <Stack.Screen name="Feedback">
-              {(props) => <FeedbackScreen {...props} userProfile={userProfile} />}
-            </Stack.Screen>
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+          ) : (
+            <>
+              <Stack.Screen name="Main">
+                {(props) => (
+                  <MainScreen
+                    {...props}
+                    userProfile={userProfile}
+                    onCommentUsed={handleCommentUsed}
+                    selectedComments={selectedComments}
+                    commentCount={commentCount}
+                    tierLimit={tierLimits[tier]}
+                    tier={tier}
+                    discoveryRemaining={getDiscoveryRemaining()}
+                    todayCommentCount={todayCommentCount}
+                    dailyGoal={dailyGoal}
+                    streak={streak}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="Discover">
+                {(props) => (
+                  <DiscoverScreen
+                    {...props}
+                    userProfile={userProfile}
+                    onCommentUsed={handleCommentUsed}
+                    selectedComments={selectedComments}
+                    commentCount={commentCount}
+                    tierLimit={tierLimits[tier]}
+                    tier={tier}
+                    commentedPostUrls={commentedPostUrls}
+                    onDiscoveryUsed={handleDiscoveryUsed}
+                    discoveryCache={discoveryCache}
+                    setDiscoveryCache={setDiscoveryCache}
+                    engagedAccounts={engagedAccounts}
+                    discoveryRemaining={getDiscoveryRemaining()}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="Inbox">
+                {(props) => (
+                  <InboxScreen
+                    {...props}
+                    userProfile={userProfile}
+                    tier={tier}
+                    selectedComments={selectedComments}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="Settings">
+                {(props) => (
+                  <SettingsScreen
+                    {...props}
+                    userProfile={userProfile}
+                    onUpdate={handleProfileUpdate}
+                    tier={tier}
+                    onUpgrade={setTier}
+                    dailyGoal={dailyGoal}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="Reporting">
+                {(props) => (
+                  <ReportingScreen
+                    {...props}
+                    commentHistory={commentHistory}
+                    commentCount={commentCount}
+                    tier={tier}
+                    tierLimit={tierLimits[tier]}
+                    engagedAccounts={engagedAccounts}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="Feedback">
+                {(props) => <FeedbackScreen {...props} userProfile={userProfile} />}
+              </Stack.Screen>
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+
+      {/* App Store rating prompt */}
+      <Modal visible={showRatingPrompt} transparent animationType="fade">
+        <View style={ratingStyles.overlay}>
+          <View style={ratingStyles.card}>
+            <Text style={ratingStyles.emoji}>⭐</Text>
+            <Text style={ratingStyles.title}>Enjoying CommentEngine?</Text>
+            <Text style={ratingStyles.body}>
+              A quick rating helps us reach more creators and keeps the app growing!
+            </Text>
+            <TouchableOpacity style={ratingStyles.rateBtn} onPress={handleRateUs}>
+              <Text style={ratingStyles.rateBtnText}>Rate Us</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={ratingStyles.dismissBtn} onPress={handleDismissRating}>
+              <Text style={ratingStyles.dismissText}>Not Now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
+
+const ratingStyles = StyleSheet.create({
+  overlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center', alignItems: 'center', padding: 32,
+  },
+  card: {
+    backgroundColor: '#1a1a1a', borderRadius: 20, padding: 28,
+    width: '100%', maxWidth: 360, alignItems: 'center',
+    borderWidth: 1, borderColor: '#333',
+  },
+  emoji: { fontSize: 44, marginBottom: 12 },
+  title: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginBottom: 10, textAlign: 'center' },
+  body: { fontSize: 15, color: '#999', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  rateBtn: {
+    backgroundColor: '#4f8ef7', paddingVertical: 14, borderRadius: 12,
+    width: '100%', alignItems: 'center', marginBottom: 12,
+  },
+  rateBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  dismissBtn: { padding: 8 },
+  dismissText: { color: '#666', fontSize: 14 },
+});

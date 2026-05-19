@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { ANTHROPIC_API_KEY, APIFY_API_TOKEN } from '../config';
+import { logError } from '../lib/supabase';
 
 function LoadingMessages({ messages }) {
   const [index, setIndex] = useState(0);
@@ -84,6 +85,9 @@ export default function MainScreen({
   tierLimit,
   tier,
   discoveryRemaining,
+  todayCommentCount,
+  dailyGoal,
+  streak,
 }) {
   const [postUrl, setPostUrl] = useState('');
   const [comments, setComments] = useState([]);
@@ -147,18 +151,20 @@ export default function MainScreen({
       caption = await fetchCaption(postUrl);
       if (!caption) {
         Alert.alert(
-          'Hmm, couldn\'t grab that caption',
-          'Instagram might be being difficult. Try a different post or try again in a minute.'
+          'Instagram is being difficult right now',
+          'Try a different post or try again in a minute.'
         );
         setLoading(false);
         return;
       }
       setCurrentCaption(caption);
     } catch (error) {
+      const isNetwork = error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch');
       Alert.alert(
-        'Something went wrong',
-        'We had trouble reaching Instagram. Check your connection and try again.'
+        isNetwork ? 'Check your internet connection' : 'Instagram is being difficult right now',
+        isNetwork ? 'Check your internet connection and try again.' : 'Try again in a minute.'
       );
+      await logError({ screen: 'MainScreen', action: 'fetchCaption', message: error.message, userId: userProfile?.id });
       setLoading(false);
       return;
     }
@@ -215,7 +221,7 @@ Generate exactly 3 different comments for the given post. Each should have a dif
       const data = await response.json();
 
       if (!data.content || !data.content[0]) {
-        Alert.alert('AI hiccup', 'The comment engine had a moment. Try again.');
+        Alert.alert('Our comment engine is taking a break.', 'Try again shortly.');
         setLoading(false);
         return;
       }
@@ -225,8 +231,12 @@ Generate exactly 3 different comments for the given post. Each should have a dif
       const parsed = JSON.parse(cleaned);
       setComments(parsed);
     } catch (error) {
-      Alert.alert('Couldn\'t generate comments', 'Something went wrong with the AI. Try again in a moment.');
-      console.error(error);
+      const isNetwork = error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch');
+      Alert.alert(
+        isNetwork ? 'Check your internet connection' : 'Our comment engine is taking a break.',
+        isNetwork ? 'Check your internet connection and try again.' : 'Try again shortly.'
+      );
+      await logError({ screen: 'MainScreen', action: 'generateComments', message: error.message, userId: userProfile?.id });
     } finally {
       setLoading(false);
       setLoadingPhase('');
@@ -276,17 +286,42 @@ Generate exactly 3 different comments for the given post. Each should have a dif
         </Text>
       </View>
 
-      <TouchableOpacity
-        style={styles.discoverButton}
-        onPress={() => navigation.navigate('Discover')}
-      >
-        <Text style={styles.discoverButtonText}>Find Posts For Me</Text>
-        <Text style={styles.discoverSubtext}>
-          {discoveryRemaining > 0
-            ? `${discoveryRemaining} ${discoveryRemaining === 1 ? 'session' : 'sessions'} left today`
-            : 'No sessions left today'}
-        </Text>
-      </TouchableOpacity>
+      {dailyGoal > 0 && (
+        <View style={styles.goalRow}>
+          <View style={styles.goalInfo}>
+            <Text style={styles.goalText}>
+              {todayCommentCount}/{dailyGoal} today
+            </Text>
+            <View style={styles.goalTrack}>
+              <View style={[styles.goalFill, { width: `${Math.min((todayCommentCount / dailyGoal) * 100, 100)}%` }]} />
+            </View>
+          </View>
+          {streak > 0 && (
+            <Text style={styles.streakText}>{streak} day streak 🔥</Text>
+          )}
+        </View>
+      )}
+
+      <View style={styles.actionButtonsRow}>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.discoverButton]}
+          onPress={() => navigation.navigate('Discover')}
+        >
+          <Text style={styles.discoverButtonText}>Find Posts For Me</Text>
+          <Text style={styles.discoverSubtext}>
+            {discoveryRemaining > 0
+              ? `${discoveryRemaining} ${discoveryRemaining === 1 ? 'session' : 'sessions'} left today`
+              : 'No sessions left today'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.inboxButton]}
+          onPress={() => navigation.navigate('Inbox')}
+        >
+          <Text style={styles.inboxButtonText}>Reply to Comments</Text>
+          <Text style={styles.inboxSubtext}>{tier === 'business' ? 'Business' : 'Business only'}</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
@@ -435,23 +470,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'right',
   },
-  discoverButton: {
-    backgroundColor: '#4f8ef7',
-    paddingVertical: 20,
-    borderRadius: 16,
+  goalRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 12,
   },
+  goalInfo: { flex: 1 },
+  goalText: { color: '#999', fontSize: 12, marginBottom: 4 },
+  goalTrack: { height: 4, backgroundColor: '#1a1a1a', borderRadius: 2, overflow: 'hidden' },
+  goalFill: { height: '100%', backgroundColor: '#4caf50', borderRadius: 2 },
+  streakText: { color: '#ffaa00', fontSize: 13, fontWeight: '600' },
+  actionButtonsRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  actionButton: { flex: 1, paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
+  discoverButton: { backgroundColor: '#4f8ef7' },
   discoverButtonText: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
   },
   discoverSubtext: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 13,
+    fontSize: 11,
     marginTop: 4,
   },
+  inboxButton: { backgroundColor: '#2a2a2a', borderWidth: 1, borderColor: '#444' },
+  inboxButtonText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  inboxSubtext: { color: '#666', fontSize: 10, marginTop: 4 },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
