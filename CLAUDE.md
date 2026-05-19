@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Workflow Rules
+- After every commit and push, update CLAUDE.md with any new patterns, features, screens, or important changes from that session. This is mandatory, not optional.
+- Always run `npx expo export` to verify the build compiles before committing.
+
 ## Commands
 
 ```bash
