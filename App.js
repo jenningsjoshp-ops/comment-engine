@@ -10,6 +10,7 @@ import ReportingScreen from './screens/ReportingScreen';
 import FeedbackScreen from './screens/FeedbackScreen';
 import DiscoverScreen from './screens/DiscoverScreen';
 import InboxScreen from './screens/InboxScreen';
+import QueueScreen from './screens/QueueScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   saveUser,
@@ -49,6 +50,9 @@ export default function App() {
   const [dailyGoal, setDailyGoal] = useState(10);
   const [streak, setStreak] = useState(0);
   const [lastGoalDate, setLastGoalDate] = useState(null);
+
+  // Comment queue
+  const [commentQueue, setCommentQueue] = useState([]);
 
   // Rating prompt
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
@@ -227,6 +231,14 @@ export default function App() {
     return Math.max(0, discoveryLimits[tier] - discoveryCount);
   };
 
+  const addToQueue = (item) => {
+    setCommentQueue((prev) => [item, ...prev]);
+  };
+
+  const markQueueDone = (id) => {
+    setCommentQueue((prev) => prev.filter((item) => item.id !== id));
+  };
+
   const handleRateUs = async () => {
     await AsyncStorage.setItem('ratingPromptShown', 'true');
     setShowRatingPrompt(false);
@@ -278,6 +290,7 @@ export default function App() {
                     todayCommentCount={todayCommentCount}
                     dailyGoal={dailyGoal}
                     streak={streak}
+                    queueCount={commentQueue.length}
                   />
                 )}
               </Stack.Screen>
@@ -287,6 +300,7 @@ export default function App() {
                     {...props}
                     userProfile={userProfile}
                     onCommentUsed={handleCommentUsed}
+                    addToQueue={addToQueue}
                     selectedComments={selectedComments}
                     commentCount={commentCount}
                     tierLimit={tierLimits[tier]}
@@ -307,6 +321,15 @@ export default function App() {
                     userProfile={userProfile}
                     tier={tier}
                     selectedComments={selectedComments}
+                  />
+                )}
+              </Stack.Screen>
+              <Stack.Screen name="Queue">
+                {(props) => (
+                  <QueueScreen
+                    {...props}
+                    queue={commentQueue}
+                    onDone={markQueueDone}
                   />
                 )}
               </Stack.Screen>

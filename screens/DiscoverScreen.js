@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Linking,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { ANTHROPIC_API_KEY, APIFY_API_TOKEN } from '../config';
@@ -21,15 +20,11 @@ function LoadingMessages({ messages }) {
   useEffect(() => {
     const interval = setInterval(() => {
       Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
+        toValue: 0, duration: 300, useNativeDriver: true,
       }).start(() => {
         setIndex((prev) => (prev + 1) % messages.length);
         Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
+          toValue: 1, duration: 300, useNativeDriver: true,
         }).start();
       });
     }, 2500);
@@ -37,16 +32,10 @@ function LoadingMessages({ messages }) {
   }, []);
 
   return (
-    <Animated.Text
-      style={{
-        color: '#999',
-        marginTop: 16,
-        textAlign: 'center',
-        fontStyle: 'italic',
-        opacity: fadeAnim,
-        fontSize: 15,
-      }}
-    >
+    <Animated.Text style={{
+      color: '#999', marginTop: 14, textAlign: 'center',
+      fontStyle: 'italic', opacity: fadeAnim, fontSize: 14,
+    }}>
       {messages[index]}
     </Animated.Text>
   );
@@ -74,6 +63,7 @@ export default function DiscoverScreen({
   navigation,
   userProfile,
   onCommentUsed,
+  addToQueue,
   selectedComments,
   commentCount,
   tierLimit,
@@ -87,26 +77,62 @@ export default function DiscoverScreen({
 }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
+  const [loadingPhase, setLoadingPhase] = useState('');
   const [selectedPost, setSelectedPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [generatingComments, setGeneratingComments] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [completedPosts, setCompletedPosts] = useState([]);
   const [skippedPosts, setSkippedPosts] = useState([]);
+  const progressIntervalRef = useRef(null);
 
   const hashtags = userProfile?.hashtags || [];
   const remaining = tierLimit - commentCount;
 
   useEffect(() => {
-    if (hashtags.length > 0) {
-      discoverPosts();
-    }
+    if (hashtags.length > 0) discoverPosts();
+    return () => {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    };
   }, []);
 
   const getCacheKey = () => {
     const today = new Date().toDateString();
-    const tags = hashtags.slice(0, 5).sort().join(',');
+    const tags = hashtags.slice(0, 3).sort().join(',');
     return `${today}:${tags}`;
+  };
+
+  const startProgress = () => {
+    setLoadProgress(0);
+    setLoadingPhase('searching');
+    let p = 0;
+    progressIntervalRef.current = setInterval(() => {
+      p += 1;
+      if (p >= 80) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+      setLoadProgress(p);
+    }, 112); // ~9 seconds to reach 80%
+  };
+
+  const finishProgress = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    setLoadingPhase('filtering');
+    setLoadProgress(100);
+  };
+
+  const resetProgress = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    setLoadProgress(0);
+    setLoadingPhase('');
   };
 
   const discoverPosts = async () => {
@@ -117,15 +143,14 @@ export default function DiscoverScreen({
       const cached = discoveryCache[cacheKey].filter(
         (p) => !commentedPostUrls.includes(p.url) && !completedPosts.includes(p.url) && !skippedPosts.includes(p.url)
       );
-      if (cached.length > 0) {
-        setPosts(cached);
-        return;
-      }
+      if (cached.length > 0) { setPosts(cached); return; }
     }
 
+    startProgress();
     setLoading(true);
+
     try {
-      // 2. Supabase persistent cache (free, survives app restarts)
+      // 2. Supabase persistent cache
       const supabaseCached = await loadDiscoveryCache(cacheKey);
       if (supabaseCached) {
         const filtered = supabaseCached.filter(
@@ -140,35 +165,34 @@ export default function DiscoverScreen({
 
       // 3. Check daily limit before hitting Apify
       if (discoveryRemaining <= 0) {
-        Alert.alert('No sessions left today', 'You\'ve used your discovery sessions for today. Come back tomorrow!');
+        Alert.alert('No sessions left today', "You've used your discovery sessions for today. Come back tomorrow!");
         return;
       }
 
-      // 4. Fetch fresh from Apify
-      const tagsToSearch = hashtags.slice(0, 5);
-      const allPosts = [];
-
-      for (const tag of tagsToSearch) {
-        try {
-          const response = await fetch(
-            `https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                hashtags: [tag],
-                resultsLimit: 20,
-              }),
-            }
-          );
-          const data = await response.json();
-          if (data && data.length > 0) {
-            allPosts.push(...data);
+      // 4. Fetch top 3 hashtags in parallel
+      const tagsToSearch = hashtags.slice(0, 3);
+      const results = await Promise.all(
+        tagsToSearch.map(async (tag) => {
+          try {
+            const response = await fetch(
+              `https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hashtags: [tag], resultsLimit: 20 }),
+              }
+            );
+            const data = await response.json();
+            return Array.isArray(data) ? data : [];
+          } catch (e) {
+            console.error('Failed to fetch hashtag:', tag, e);
+            return [];
           }
-        } catch (e) {
-          console.error('Failed to fetch hashtag:', tag, e);
-        }
-      }
+        })
+      );
+      const allPosts = results.flat();
+
+      finishProgress();
 
       const filtered = allPosts
         .filter((p) => {
@@ -178,13 +202,10 @@ export default function DiscoverScreen({
           const url = p.url || '';
           const isOwn = p.ownerUsername === userProfile?.igHandle;
           return (
-            likes >= 50 &&
-            likes <= 10000 &&
+            likes >= 50 && likes <= 10000 &&
             commentsCt < 50 &&
             (followers === 0 || followers <= 100000) &&
-            url &&
-            !isOwn &&
-            !commentedPostUrls.includes(url)
+            url && !isOwn && !commentedPostUrls.includes(url)
           );
         })
         .sort((a, b) => {
@@ -213,7 +234,6 @@ export default function DiscoverScreen({
       setPosts(filtered);
       onDiscoveryUsed();
     } catch (error) {
-      console.error('Discovery failed:', error);
       const isNetwork = error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch');
       Alert.alert(
         isNetwork ? 'Check your internet connection' : 'Instagram is being difficult right now',
@@ -222,6 +242,7 @@ export default function DiscoverScreen({
       await logError({ screen: 'DiscoverScreen', action: 'discoverPosts', message: error.message, userId: userProfile?.id });
     } finally {
       setLoading(false);
+      resetProgress();
     }
   };
 
@@ -280,27 +301,21 @@ Rules:
 - Make people curious about the commenter
 
 Generate exactly 3 different comments for the given post. Each should have a different angle. Return ONLY a JSON array of 3 strings, no other text.`,
-          messages: [
-            {
-              role: 'user',
-              content: `Generate 3 comments for this Instagram post by @${post.username}:\n\nCaption: ${post.caption}`,
-            },
-          ],
+          messages: [{
+            role: 'user',
+            content: `Generate 3 comments for this Instagram post by @${post.username}:\n\nCaption: ${post.caption}`,
+          }],
         }),
       });
 
       const data = await response.json();
-
       if (!data.content || !data.content[0]) {
         Alert.alert('Our comment engine is taking a break.', 'Try again shortly.');
         setGeneratingComments(false);
         return;
       }
-
-      const text = data.content[0].text;
-      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-      setComments(parsed);
+      const cleaned = data.content[0].text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      setComments(JSON.parse(cleaned));
     } catch (error) {
       const isNetwork = error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch');
       Alert.alert(
@@ -314,31 +329,34 @@ Generate exactly 3 different comments for the given post. Each should have a dif
   };
 
   const regenerateComments = () => {
-    if (selectedPost) {
-      generateForPost(selectedPost);
-    }
+    if (selectedPost) generateForPost(selectedPost);
   };
 
   const skipPost = () => {
-    if (selectedPost) {
-      setSkippedPosts((prev) => [...prev, selectedPost.url]);
-    }
+    if (selectedPost) setSkippedPosts((prev) => [...prev, selectedPost.url]);
     setSelectedPost(null);
     setComments([]);
   };
 
-const selectComment = async (comment, index) => {
+  const selectComment = async (comment, index) => {
     await Clipboard.setStringAsync(comment);
     setCopiedIndex(index);
     onCommentUsed(comment, comments, selectedPost.caption, selectedPost.url, selectedPost.username);
     setCompletedPosts((prev) => [...prev, selectedPost.url]);
-    const url = selectedPost.url;
+
+    addToQueue({
+      id: `${selectedPost.url}-${Date.now()}`,
+      postUrl: selectedPost.url,
+      username: selectedPost.username,
+      caption: selectedPost.caption,
+      comment,
+      done: false,
+    });
 
     setTimeout(() => {
       setCopiedIndex(null);
       setSelectedPost(null);
       setComments([]);
-      Linking.openURL(url || 'instagram://');
     }, 1000);
   };
 
@@ -346,6 +364,7 @@ const selectComment = async (comment, index) => {
     (p) => !completedPosts.includes(p.url) && !skippedPosts.includes(p.url)
   );
 
+  // Comment selection view
   if (selectedPost && (comments.length > 0 || generatingComments)) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -369,7 +388,6 @@ const selectComment = async (comment, index) => {
           <>
             <Text style={styles.resultsTitle}>Pick your comment</Text>
             <Text style={styles.learningHint}>We learn from your picks to make better comments over time</Text>
-
             {comments.map((comment, index) => (
               <TouchableOpacity
                 key={index}
@@ -378,11 +396,10 @@ const selectComment = async (comment, index) => {
               >
                 <Text style={styles.commentText}>{comment}</Text>
                 <Text style={styles.copyHint}>
-                  {copiedIndex === index ? 'Copied! Opening Instagram...' : 'Tap to copy & post'}
+                  {copiedIndex === index ? '✓ Added to queue!' : 'Tap to add to queue'}
                 </Text>
               </TouchableOpacity>
             ))}
-
             <View style={styles.actionRow}>
               <TouchableOpacity style={styles.secondaryButton} onPress={regenerateComments}>
                 <Text style={styles.secondaryButtonText}>Regenerate</Text>
@@ -397,6 +414,7 @@ const selectComment = async (comment, index) => {
     );
   }
 
+  // Main discover list view
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
@@ -408,14 +426,19 @@ const selectComment = async (comment, index) => {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color="#4f8ef7" size="large" />
+        <View style={styles.progressContainer}>
+          <Text style={styles.phaseLabel}>
+            {loadingPhase === 'filtering' ? 'Filtering the best posts...' : 'Searching your communities...'}
+          </Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${loadProgress}%` }]} />
+          </View>
           <LoadingMessages messages={DISCOVER_MESSAGES} />
         </View>
       ) : availablePosts.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>
-            {posts.length > 0 ? 'You\'ve gone through them all!' : 'No posts found'}
+            {posts.length > 0 ? "You've gone through them all!" : 'No posts found'}
           </Text>
           <Text style={styles.emptySubtitle}>
             {posts.length > 0
@@ -432,11 +455,8 @@ const selectComment = async (comment, index) => {
         </View>
       ) : (
         <>
-          <Text style={styles.discoverSubtitle}>
-            {availablePosts.length} posts to comment on
-          </Text>
-
-          {availablePosts.map((post, index) => (
+          <Text style={styles.discoverSubtitle}>{availablePosts.length} posts to comment on</Text>
+          {availablePosts.map((post) => (
             <TouchableOpacity
               key={post.url}
               style={styles.postCard}
@@ -451,17 +471,11 @@ const selectComment = async (comment, index) => {
                   <Text style={styles.statText}>{post.comments} comments</Text>
                 </View>
               </View>
-              <Text style={styles.postCardCaption} numberOfLines={3}>
-                {post.caption}
-              </Text>
+              <Text style={styles.postCardCaption} numberOfLines={3}>{post.caption}</Text>
               <Text style={styles.postCardAction}>Tap to generate comments</Text>
             </TouchableOpacity>
           ))}
-
-          <TouchableOpacity
-            style={styles.refreshBtn}
-            onPress={discoverPosts}
-          >
+          <TouchableOpacity style={styles.refreshBtn} onPress={discoverPosts}>
             <Text style={styles.refreshBtnText}>Refresh Posts</Text>
           </TouchableOpacity>
         </>
@@ -471,204 +485,75 @@ const selectComment = async (comment, index) => {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-  },
-  content: {
-    padding: 24,
-    paddingTop: 60,
-    paddingBottom: 40,
-  },
+  container: { flex: 1, backgroundColor: '#0a0a0a' },
+  content: { padding: 24, paddingTop: 60, paddingBottom: 40 },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 24,
   },
-  backButton: {
-    padding: 8,
+  backButton: { padding: 8 },
+  backText: { color: '#4f8ef7', fontSize: 16 },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
+  discoverSubtitle: { fontSize: 14, color: '#999', marginBottom: 20, textAlign: 'center' },
+  progressContainer: { alignItems: 'center', marginTop: 60, paddingHorizontal: 8 },
+  phaseLabel: {
+    color: '#fff', fontSize: 15, fontWeight: '600',
+    marginBottom: 16, textAlign: 'center',
   },
-  backText: {
-    color: '#4f8ef7',
-    fontSize: 16,
+  progressTrack: {
+    width: '100%', height: 6, backgroundColor: '#1a1a1a',
+    borderRadius: 3, overflow: 'hidden',
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+  progressFill: {
+    height: '100%', backgroundColor: '#4f8ef7', borderRadius: 3,
   },
-  discoverSubtitle: {
-    fontSize: 14,
-    color: '#999',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    marginTop: 60,
-    marginBottom: 16,
-  },
-  emptyState: {
-    alignItems: 'center',
-    marginTop: 60,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: 15,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
-  },
+  loadingContainer: { alignItems: 'center', marginTop: 60, marginBottom: 16 },
+  emptyState: { alignItems: 'center', marginTop: 60 },
+  emptyTitle: { fontSize: 22, fontWeight: '600', color: '#fff', marginBottom: 12, textAlign: 'center' },
+  emptySubtitle: { fontSize: 15, color: '#666', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
   postCard: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#333',
+    backgroundColor: '#1a1a1a', borderRadius: 12,
+    padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#333',
   },
   postCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 10,
   },
-  postCardUsername: {
-    color: '#4f8ef7',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  postCardStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statText: {
-    color: '#666',
-    fontSize: 12,
-  },
-  statDot: {
-    color: '#666',
-    fontSize: 12,
-    marginHorizontal: 6,
-  },
-  postCardCaption: {
-    color: '#ccc',
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 10,
-  },
-  postCardAction: {
-    color: '#4f8ef7',
-    fontSize: 13,
-    textAlign: 'right',
-  },
+  postCardUsername: { color: '#4f8ef7', fontSize: 15, fontWeight: '600' },
+  postCardStats: { flexDirection: 'row', alignItems: 'center' },
+  statText: { color: '#666', fontSize: 12 },
+  statDot: { color: '#666', fontSize: 12, marginHorizontal: 6 },
+  postCardCaption: { color: '#ccc', fontSize: 14, lineHeight: 20, marginBottom: 10 },
+  postCardAction: { color: '#4f8ef7', fontSize: 13, textAlign: 'right' },
   postPreview: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#333',
+    backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16,
+    marginBottom: 24, borderWidth: 1, borderColor: '#333',
   },
-  postUsername: {
-    color: '#4f8ef7',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  postCaption: {
-    color: '#ccc',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  resultsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  learningHint: {
-    fontSize: 13,
-    color: '#666',
-    fontStyle: 'italic',
-    marginBottom: 16,
-  },
+  postUsername: { color: '#4f8ef7', fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  postCaption: { color: '#ccc', fontSize: 15, lineHeight: 22 },
+  resultsTitle: { fontSize: 18, fontWeight: '600', color: '#fff', marginBottom: 4 },
+  learningHint: { fontSize: 13, color: '#666', fontStyle: 'italic', marginBottom: 16 },
   commentCard: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#333',
+    backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16,
+    marginBottom: 12, borderWidth: 1, borderColor: '#333',
   },
-  commentCardSelected: {
-    borderColor: '#4f8ef7',
-    backgroundColor: '#1a2a4a',
-  },
-  commentText: {
-    color: '#fff',
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  copyHint: {
-    color: '#4f8ef7',
-    fontSize: 12,
-    marginTop: 8,
-    textAlign: 'right',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
+  commentCardSelected: { borderColor: '#4caf50', backgroundColor: '#1a3a1a' },
+  commentText: { color: '#fff', fontSize: 16, lineHeight: 22 },
+  copyHint: { color: '#4f8ef7', fontSize: 12, marginTop: 8, textAlign: 'right' },
+  actionRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
   secondaryButton: {
-    flex: 1,
-    backgroundColor: '#2a2a2a',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#4f8ef7',
+    flex: 1, backgroundColor: '#2a2a2a', paddingVertical: 14,
+    borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#4f8ef7',
   },
-  secondaryButtonText: {
-    color: '#4f8ef7',
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  secondaryButtonText: { color: '#4f8ef7', fontSize: 15, fontWeight: '600' },
   skipButton: {
-    flex: 1,
-    backgroundColor: '#2a2a2a',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
+    flex: 1, backgroundColor: '#2a2a2a', paddingVertical: 14,
+    borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#333',
   },
-  skipButtonText: {
-    color: '#999',
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  skipButtonText: { color: '#999', fontSize: 15, fontWeight: '600' },
   refreshBtn: {
-    backgroundColor: '#2a2a2a',
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#333',
+    backgroundColor: '#2a2a2a', paddingVertical: 14, borderRadius: 12,
+    alignItems: 'center', marginTop: 16, borderWidth: 1, borderColor: '#333',
   },
-  refreshBtnText: {
-    color: '#4f8ef7',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  refreshBtnText: { color: '#4f8ef7', fontSize: 16, fontWeight: '600' },
 });

@@ -88,6 +88,7 @@ export default function MainScreen({
   todayCommentCount,
   dailyGoal,
   streak,
+  queueCount,
 }) {
   const [postUrl, setPostUrl] = useState('');
   const [comments, setComments] = useState([]);
@@ -323,6 +324,14 @@ Generate exactly 3 different comments for the given post. Each should have a dif
         </TouchableOpacity>
       </View>
 
+      {queueCount > 0 && (
+        <TouchableOpacity style={styles.queueBadge} onPress={() => navigation.navigate('Queue')}>
+          <Text style={styles.queueBadgeText}>
+            {queueCount} comment{queueCount !== 1 ? 's' : ''} ready to post →
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
         <Text style={styles.dividerText}>or paste a URL</Text>
@@ -498,6 +507,12 @@ const styles = StyleSheet.create({
   inboxButton: { backgroundColor: '#2a2a2a', borderWidth: 1, borderColor: '#444' },
   inboxButtonText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   inboxSubtext: { color: '#666', fontSize: 10, marginTop: 4 },
+  queueBadge: {
+    backgroundColor: '#1a3a1a', borderRadius: 10, paddingVertical: 10,
+    paddingHorizontal: 16, alignItems: 'center', marginBottom: 16,
+    borderWidth: 1, borderColor: '#4caf50',
+  },
+  queueBadgeText: { color: '#4caf50', fontSize: 14, fontWeight: '600' },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
