@@ -12,23 +12,17 @@ const { width } = Dimensions.get('window');
 
 const SLIDES = [
   {
-    title: 'Stop writing comments\nfrom scratch',
-    body: 'CommentEngine finds posts in your niche and writes comments in your voice. Just tap, copy, and post.',
-    icon: '💬',
+    body: "You know those comments that make you tap someone's profile? We write those for you.",
   },
   {
-    title: 'Comments that make\npeople curious about YOU',
-    body: 'Every comment is engineered to make people tap your profile. Not just engage with the post.',
-    icon: '🎯',
+    body: "Tell us your vibe, and we'll find posts in your niche and write comments that sound like YOU — not a bot.",
   },
   {
-    title: 'It gets smarter\nthe more you use it',
-    body: 'The app learns which comments you pick and adapts to your style over time. Your voice, amplified.',
-    icon: '🧠',
+    body: "The more you use it, the better it gets. Ready?",
   },
 ];
 
-export default function WelcomeScreen({ onComplete }) {
+export default function WelcomeScreen({ onComplete, onSkipAndExplore }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef(null);
 
@@ -46,12 +40,10 @@ export default function WelcomeScreen({ onComplete }) {
     }
   };
 
+  const isLastSlide = activeIndex === SLIDES.length - 1;
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.skipButton} onPress={onComplete}>
-        <Text style={styles.skipText}>Skip</Text>
-      </TouchableOpacity>
-
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -62,8 +54,6 @@ export default function WelcomeScreen({ onComplete }) {
       >
         {SLIDES.map((slide, index) => (
           <View key={index} style={[styles.slide, { width }]}>
-            <Text style={styles.icon}>{slide.icon}</Text>
-            <Text style={styles.slideTitle}>{slide.title}</Text>
             <Text style={styles.slideBody}>{slide.body}</Text>
           </View>
         ))}
@@ -81,9 +71,15 @@ export default function WelcomeScreen({ onComplete }) {
 
         <TouchableOpacity style={styles.button} onPress={goToNext}>
           <Text style={styles.buttonText}>
-            {activeIndex === SLIDES.length - 1 ? 'Get Started' : 'Next'}
+            {isLastSlide ? 'Get Started' : 'Next'}
           </Text>
         </TouchableOpacity>
+
+        {isLastSlide && (
+          <TouchableOpacity style={styles.skipButton} onPress={onSkipAndExplore}>
+            <Text style={styles.skipText}>Skip and explore</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -94,17 +90,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0a0a0a',
   },
-  skipButton: {
-    position: 'absolute',
-    top: 60,
-    right: 24,
-    zIndex: 10,
-    padding: 8,
-  },
-  skipText: {
-    color: '#666',
-    fontSize: 16,
-  },
   scrollView: {
     flex: 1,
   },
@@ -114,23 +99,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 40,
   },
-  icon: {
-    fontSize: 64,
-    marginBottom: 32,
-  },
-  slideTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  slideBody: {
+    fontSize: 26,
+    fontWeight: '600',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 16,
     lineHeight: 36,
-  },
-  slideBody: {
-    fontSize: 17,
-    color: '#999',
-    textAlign: 'center',
-    lineHeight: 26,
   },
   footer: {
     paddingHorizontal: 24,
@@ -163,5 +137,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '700',
+  },
+  skipButton: {
+    marginTop: 16,
+    padding: 12,
+  },
+  skipText: {
+    color: '#666',
+    fontSize: 15,
   },
 });

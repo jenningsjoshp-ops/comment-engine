@@ -39,11 +39,14 @@ The `eas-build-pre-install` script (`generate-config.js`) runs automatically bef
 - Daily goals & streaks (`dailyGoal`, `streak`, `lastGoalDate`)
 - Comment queue (`commentQueue`) — in-memory only, resets on app restart
 - Rating prompt (`showRatingPrompt`)
+- Skip-and-explore flag (`skippedOnboarding`) — true when user skipped onboarding from WelcomeScreen
 
 All state is passed down as props — there is no context or state management library.
 
 **Navigation flow:** `WelcomeScreen` → `OnboardingScreen` → main stack:
 `Main`, `Discover`, `Queue`, `Inbox`, `Settings`, `Reporting`, `Feedback`
+
+**Skip-and-explore flow:** WelcomeScreen has a "Skip and explore" button (last slide only) that calls `handleSkipAndExplore` in App.js. This sets a default creator profile, marks `isOnboarded(true)` and `skippedOnboarding(true)`, bypassing OnboardingScreen entirely. Users land on MainScreen with defaults. When they try to generate comments, discover posts, or reply to comments, they see a lazy prompt: "Set up your voice first" with "Set Up Now" (calls `handleSetUpNow` → sets `isOnboarded(false)`, showing Onboarding) or "Use defaults" (proceeds with generic voice). SettingsScreen shows a "Complete your profile for better comments" banner at the top when `skippedOnboarding` is true.
 
 **Screens (`screens/`):**
 
@@ -51,8 +54,9 @@ All state is passed down as props — there is no context or state management li
 - **DiscoverScreen** — finds posts by hashtag using Apify. Picking a comment adds it to the queue (no immediate Instagram open). Uses a two-phase progress bar during search. Fetches top 3 hashtags in parallel via `Promise.all`.
 - **QueueScreen** — checklist of comments queued from DiscoverScreen. Each item: `@username`, caption preview, the chosen comment. Per-item Copy button, Open Post button (opens that URL in Instagram), Done button (removes from queue). Queue badge on MainScreen drives navigation here.
 - **InboxScreen** — Business tier only. Pulls comments on the user's own posts via Apify, shows an inbox feed, generates 3 brand-voice reply options per comment. Same copy→open Instagram pattern as the rest of the app. Non-business users see an upgrade prompt.
-- **OnboardingScreen** — 7-step flow: account type → IG handle → hashtags → reference URLs → voice sliders → preview → email/name. Distinguishes private accounts from bad handles.
-- **SettingsScreen** — profile editing, tier upgrades, daily goal selector (5/10/15/20), voice slider editing, hashtag management, reference URL management.
+- **OnboardingScreen** — 7-step flow: account type → IG handle → hashtags → reference URLs → voice sliders → preview → Apple Sign In / name+email. Steps 1, 3, 4, 5, 6 have skip links ("Use default", "I'll add these later", "Use defaults", "I'll see it in action"). Steps 2 and 7 are required. Distinguishes private accounts from bad handles.
+- **WelcomeScreen** — 3 text-only slides. Last slide shows "Get Started" (→ OnboardingScreen) and "Skip and explore" (→ skip-and-explore flow). Earlier slides show "Next" only.
+- **SettingsScreen** — profile editing, tier upgrades, daily goal selector (5/10/15/20), voice slider editing, hashtag management, reference URL management. Shows "Complete your profile" banner when `skippedOnboarding` is true. Log Out button at bottom resets all state.
 - **ReportingScreen** — read-only stats: comment counts, usage bar, voice DNA word cloud, recent comment history, engaged accounts list.
 
 **`lib/supabase.js`** — all database I/O. Tables: `users`, `comment_history`, `commented_posts`, `engaged_accounts`, `discovery_cache`, `feedback`, `error_logs`. Functions follow a consistent pattern: upsert for creates/updates, return `null` on error rather than throwing. Key functions:

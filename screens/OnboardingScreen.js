@@ -371,7 +371,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.title}>What best describes you?</Text>
-            <Text style={styles.subtitle}>This shapes how your comments sound</Text>
+            <Text style={styles.subtitle}>This helps us match your tone</Text>
             {ACCOUNT_TYPES.map((type) => (
               <TouchableOpacity
                 key={type.id}
@@ -393,6 +393,12 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
             >
               <Text style={styles.buttonText}>Next</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { setAccountType('creator'); setStep(2); }}
+              style={styles.stepSkipButton}
+            >
+              <Text style={styles.stepSkipText}>Use default</Text>
+            </TouchableOpacity>
           </View>
         );
 
@@ -400,7 +406,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.title}>Your Instagram</Text>
-            <Text style={styles.subtitle}>We'll pull your recent posts to learn your voice</Text>
+            <Text style={styles.subtitle}>We'll study your last few posts so your comments sound authentic</Text>
             <View style={[styles.handleInputRow, igLoading && styles.inputDisabled]}>
               <Text style={styles.atPrefix}>@</Text>
               <TextInput
@@ -469,7 +475,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
           <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>Your Communities</Text>
             <Text style={styles.subtitle}>
-              Tap to remove any you don't want. Add your own below.
+              These are the communities where we'll find posts for you to comment on
             </Text>
             <View style={styles.hashtagGrid}>
               {extractedHashtags.map((tag) => (
@@ -520,6 +526,9 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
             >
               <Text style={styles.buttonText}>Next</Text>
             </TouchableOpacity>
+            <TouchableOpacity onPress={() => setStep(4)} style={styles.stepSkipButton}>
+              <Text style={styles.stepSkipText}>I'll add these later</Text>
+            </TouchableOpacity>
           </ScrollView>
         );
 
@@ -528,7 +537,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
           <View style={styles.stepContainer}>
             <Text style={styles.title}>Reference URLs</Text>
             <Text style={styles.subtitle}>
-              Add your website, menu, services page, or any URL that has info about you
+              Got a website or menu? We'll reference it when writing replies
             </Text>
             {urls.map((url, index) => (
               <TextInput
@@ -561,11 +570,16 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
                 />
               </View>
             ) : (
-              <TouchableOpacity style={styles.button} onPress={fetchUrlContent}>
-                <Text style={styles.buttonText}>
-                  {urls.some((u) => u.trim()) ? 'Fetch & Continue' : 'Skip'}
-                </Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity style={styles.button} onPress={fetchUrlContent}>
+                  <Text style={styles.buttonText}>
+                    {urls.some((u) => u.trim()) ? 'Fetch & Continue' : 'Continue'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setStep(5)} style={styles.stepSkipButton}>
+                  <Text style={styles.stepSkipText}>I'll add these later</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         );
@@ -574,7 +588,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
         return (
           <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>Set your voice</Text>
-            <Text style={styles.subtitle}>Tap where you fall on each scale</Text>
+            <Text style={styles.subtitle}>Fine-tune how you want to sound</Text>
             {getSliders().map((slider) => (
               <View key={slider.id} style={styles.sliderContainer}>
                 <View style={styles.sliderLabels}>
@@ -613,6 +627,12 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
             >
               <Text style={styles.buttonText}>Preview My Voice</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => { setStep(6); generatePreview(); }}
+              style={styles.stepSkipButton}
+            >
+              <Text style={styles.stepSkipText}>Use defaults</Text>
+            </TouchableOpacity>
           </ScrollView>
         );
 
@@ -620,7 +640,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
         return (
           <View style={styles.stepContainer}>
             <Text style={styles.title}>Here's your voice</Text>
-            <Text style={styles.subtitle}>This is what your comments will sound like</Text>
+            <Text style={styles.subtitle}>Here's what your comments will sound like</Text>
             {previewLoading ? (
               <View style={styles.previewBox}>
                 <ActivityIndicator color="#4f8ef7" />
@@ -659,6 +679,9 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setStep(5)} style={styles.skipButton}>
               <Text style={styles.skipText}>Adjust sliders</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setStep(7)} style={styles.stepSkipButton}>
+              <Text style={styles.stepSkipText}>I'll see it in action</Text>
             </TouchableOpacity>
           </View>
         );
@@ -907,6 +930,15 @@ const styles = StyleSheet.create({
   skipText: {
     color: '#666',
     fontSize: 14,
+  },
+  stepSkipButton: {
+    marginTop: 12,
+    padding: 10,
+  },
+  stepSkipText: {
+    color: '#555',
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   hashtagGrid: {
     flexDirection: 'row',

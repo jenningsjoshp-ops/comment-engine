@@ -57,6 +57,9 @@ export default function App() {
   // Rating prompt
   const [showRatingPrompt, setShowRatingPrompt] = useState(false);
 
+  // Skipped onboarding (skip-and-explore flow)
+  const [skippedOnboarding, setSkippedOnboarding] = useState(false);
+
   const tierLimits = { starter: 20, growth: 150, business: 500 };
   const discoveryLimits = { starter: 1, growth: 5, business: 999 };
 
@@ -250,6 +253,38 @@ export default function App() {
     setShowRatingPrompt(false);
   };
 
+  const handleSkipAndExplore = () => {
+    const defaultProfile = {
+      accountType: 'creator',
+      igHandle: '',
+      igFullName: '',
+      igPosts: [],
+      hashtags: [],
+      referenceUrls: {},
+      sliderValues: {},
+      sliders: [
+        { id: 'humor', left: 'Serious', right: 'Funny' },
+        { id: 'edge', left: 'Supportive', right: 'Roast-y' },
+        { id: 'length', left: 'Short & punchy', right: 'Storytelling' },
+        { id: 'personal', left: 'Universal', right: 'Personal' },
+        { id: 'risk', left: 'Play it safe', right: 'Edgy' },
+      ],
+      name: '',
+      email: '',
+      dailyGoal: 10,
+    };
+    setUserProfile(defaultProfile);
+    setIsOnboarded(true);
+    setShowWelcome(false);
+    setSkippedOnboarding(true);
+    setDailyGoal(10);
+  };
+
+  const handleSetUpNow = () => {
+    setSkippedOnboarding(false);
+    setIsOnboarded(false);
+  };
+
   const handleLogOut = async () => {
     try {
       await AsyncStorage.removeItem('userEmail');
@@ -276,6 +311,7 @@ export default function App() {
     setLastGoalDate(null);
     setCommentQueue([]);
     setShowRatingPrompt(false);
+    setSkippedOnboarding(false);
   };
 
   if (loading) {
@@ -293,7 +329,11 @@ export default function App() {
           {showWelcome ? (
             <Stack.Screen name="Welcome">
               {(props) => (
-                <WelcomeScreen {...props} onComplete={() => setShowWelcome(false)} />
+                <WelcomeScreen
+                  {...props}
+                  onComplete={() => setShowWelcome(false)}
+                  onSkipAndExplore={handleSkipAndExplore}
+                />
               )}
             </Stack.Screen>
           ) : !isOnboarded ? (
@@ -319,6 +359,8 @@ export default function App() {
                     dailyGoal={dailyGoal}
                     streak={streak}
                     queueCount={commentQueue.length}
+                    skippedOnboarding={skippedOnboarding}
+                    onSetUpNow={handleSetUpNow}
                   />
                 )}
               </Stack.Screen>
@@ -371,6 +413,8 @@ export default function App() {
                     onUpgrade={setTier}
                     dailyGoal={dailyGoal}
                     onLogOut={handleLogOut}
+                    skippedOnboarding={skippedOnboarding}
+                    onSetUpNow={handleSetUpNow}
                   />
                 )}
               </Stack.Screen>

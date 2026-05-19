@@ -22,7 +22,7 @@ const TIER_INFO = {
 
 const GOAL_OPTIONS = [5, 10, 15, 20];
 
-export default function SettingsScreen({ navigation, userProfile, onUpdate, tier, onUpgrade, dailyGoal, onLogOut }) {
+export default function SettingsScreen({ navigation, userProfile, onUpdate, tier, onUpgrade, dailyGoal, onLogOut, skippedOnboarding, onSetUpNow }) {
   const [goalValue, setGoalValue] = useState(dailyGoal || userProfile?.dailyGoal || 10);
   const [sliderValues, setSliderValues] = useState(userProfile?.sliderValues || {});
   const [name, setName] = useState(userProfile?.name || '');
@@ -231,6 +231,14 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
         <Text style={styles.headerTitle}>Settings</Text>
         <View style={{ width: 50 }} />
       </View>
+
+      {skippedOnboarding && (
+        <TouchableOpacity style={styles.onboardingBanner} onPress={onSetUpNow}>
+          <Text style={styles.onboardingBannerText}>
+            Complete your profile for better comments →
+          </Text>
+        </TouchableOpacity>
+      )}
 
       <Text style={styles.sectionTitle}>Your Plan</Text>
       <View style={styles.tierCard}>
@@ -741,6 +749,20 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  onboardingBanner: {
+    backgroundColor: '#1a2a4a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#4f8ef7',
+  },
+  onboardingBannerText: {
+    color: '#4f8ef7',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   logOutButton: {
     paddingVertical: 16,

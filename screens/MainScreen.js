@@ -89,6 +89,8 @@ export default function MainScreen({
   dailyGoal,
   streak,
   queueCount,
+  skippedOnboarding,
+  onSetUpNow,
 }) {
   const [postUrl, setPostUrl] = useState('');
   const [comments, setComments] = useState([]);
@@ -97,6 +99,7 @@ export default function MainScreen({
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [currentCaption, setCurrentCaption] = useState('');
   const [showHelp, setShowHelp] = useState(false);
+  const acknowledgedDefaultsRef = useRef(false);
 
   const remaining = tierLimit - commentCount;
 
@@ -125,9 +128,28 @@ export default function MainScreen({
     }
   };
 
+  const showLazyPrompt = (onProceed) => {
+    Alert.alert(
+      'Set up your voice first',
+      'Get personalized comments by completing your profile, or use generic defaults.',
+      [
+        { text: 'Set Up Now', onPress: onSetUpNow },
+        { text: 'Use defaults', onPress: onProceed },
+      ]
+    );
+  };
+
   const generateComments = async () => {
     if (!postUrl.trim()) {
       Alert.alert('Need a URL', 'Paste an Instagram post URL to generate comments.');
+      return;
+    }
+
+    if (skippedOnboarding && !acknowledgedDefaultsRef.current) {
+      showLazyPrompt(() => {
+        acknowledgedDefaultsRef.current = true;
+        generateComments();
+      });
       return;
     }
 
@@ -306,7 +328,13 @@ Generate exactly 3 different comments for the given post. Each should have a dif
       <View style={styles.actionButtonsRow}>
         <TouchableOpacity
           style={[styles.actionButton, styles.discoverButton]}
-          onPress={() => navigation.navigate('Discover')}
+          onPress={() => {
+            if (skippedOnboarding) {
+              showLazyPrompt(() => navigation.navigate('Discover'));
+            } else {
+              navigation.navigate('Discover');
+            }
+          }}
         >
           <Text style={styles.discoverButtonText}>Find Posts For Me</Text>
           <Text style={styles.discoverSubtext}>
@@ -317,7 +345,13 @@ Generate exactly 3 different comments for the given post. Each should have a dif
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.inboxButton]}
-          onPress={() => navigation.navigate('Inbox')}
+          onPress={() => {
+            if (skippedOnboarding) {
+              showLazyPrompt(() => navigation.navigate('Inbox'));
+            } else {
+              navigation.navigate('Inbox');
+            }
+          }}
         >
           <Text style={styles.inboxButtonText}>Reply to Comments</Text>
           <Text style={styles.inboxSubtext}>{tier === 'business' ? 'Business' : 'Business only'}</Text>
