@@ -258,7 +258,7 @@ Generate exactly 3 different reply options to the comment below. Each should hav
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Reply Inbox</Text>
+          <Text style={styles.headerTitle}>Your Inbox</Text>
           <View style={{ width: 50 }} />
         </View>
         <View style={styles.emptyState}>
@@ -323,11 +323,12 @@ Generate exactly 3 different reply options to the comment below. Each should hav
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Reply Inbox</Text>
+        <Text style={styles.headerTitle}>Your Inbox</Text>
         <TouchableOpacity onPress={fetchInbox} style={styles.refreshBtn}>
           <Text style={styles.refreshBtnText}>Refresh</Text>
         </TouchableOpacity>
       </View>
+      <Text style={styles.inboxSubtitle}>Comments on your posts that need a reply.</Text>
 
       {loading ? (
         <View style={styles.progressContainer}>
@@ -379,6 +380,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
   refreshBtn: { padding: 8 },
   refreshBtnText: { color: '#4f8ef7', fontSize: 15 },
+  inboxSubtitle: { fontSize: 13, color: '#666', marginBottom: 20, lineHeight: 18 },
   inboxCount: { fontSize: 14, color: '#999', marginBottom: 16, textAlign: 'center' },
   inboxCard: {
     backgroundColor: '#1a1a1a', borderRadius: 12, padding: 16,

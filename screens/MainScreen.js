@@ -360,8 +360,8 @@ Generate exactly 3 different comments for the given post. Each should have a dif
             }
           }}
         >
-          <Text style={styles.inboxButtonText}>Reply to Comments</Text>
-          <Text style={styles.inboxSubtext}>AI reply suggestions</Text>
+          <Text style={styles.inboxButtonText}>Your Comment Inbox</Text>
+          <Text style={styles.inboxSubtext}>Reply to comments on your posts</Text>
         </TouchableOpacity>
       </View>
 
