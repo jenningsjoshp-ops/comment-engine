@@ -601,17 +601,14 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
                   ]}
                 />
               </View>
+            ) : urls.some((u) => u.trim()) ? (
+              <TouchableOpacity style={styles.button} onPress={fetchUrlContent}>
+                <Text style={styles.buttonText}>Continue</Text>
+              </TouchableOpacity>
             ) : (
-              <>
-                <TouchableOpacity style={styles.button} onPress={fetchUrlContent}>
-                  <Text style={styles.buttonText}>
-                    {urls.some((u) => u.trim()) ? 'Fetch & Continue' : 'Continue'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setStep(5)} style={styles.stepSkipButton}>
-                  <Text style={styles.stepSkipText}>I'll add these later</Text>
-                </TouchableOpacity>
-              </>
+              <TouchableOpacity style={styles.button} onPress={() => setStep(5)}>
+                <Text style={styles.buttonText}>Skip this step</Text>
+              </TouchableOpacity>
             )}
           </View>
         );
