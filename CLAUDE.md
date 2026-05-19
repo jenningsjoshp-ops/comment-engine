@@ -54,14 +54,14 @@ All state is passed down as props — there is no context or state management li
 
 **Screens (`screens/`):**
 
-- **MainScreen** — paste an Instagram post URL → Apify scrapes caption → Anthropic generates 3 comments → user taps to copy + auto-opens Instagram. Shows daily goal progress bar, streak count, and a green queue badge ("N comments ready") when the queue is non-empty.
-- **DiscoverScreen** — finds posts by hashtag using Apify. Picking a comment adds it to the queue (no immediate Instagram open). Uses a two-phase progress bar during search. Fetches top 3 hashtags in parallel via `Promise.all`.
-- **QueueScreen** — checklist of comments queued from DiscoverScreen. Each item: `@username`, caption preview, the chosen comment. Per-item Copy button, Open Post button (opens that URL in Instagram), Done button (removes from queue). Queue badge on MainScreen drives navigation here.
-- **InboxScreen** — Business tier only. Pulls comments on the user's own posts via Apify, shows an inbox feed, generates 3 brand-voice reply options per comment. Same copy→open Instagram pattern as the rest of the app. Non-business users see an upgrade prompt.
+- **MainScreen** — paste an Instagram post URL → Apify scrapes caption → Anthropic generates 3 comments → user taps to copy + auto-opens Instagram. Shows daily goal progress bar, streak count, and a green queue badge ("N comments ready") when the queue is non-empty. If `skippedOnboarding` is true, tapping Find Posts / Reply to Comments / Generate shows a lazy prompt before proceeding.
+- **DiscoverScreen** — finds posts by hashtag using Apify. Picking a comment adds it to the queue (no immediate Instagram open). Uses a two-phase progress bar during search. Fetches top 3 hashtags in parallel via `Promise.all`. Session limit alert includes "Upgrade" button → Settings.
+- **QueueScreen** — checklist of comments queued from DiscoverScreen. Each item: `@username`, caption preview, the chosen comment. Per-item Copy button, "Open @{username}" button (opens Instagram post URL), Done button (removes from queue), and a wrong-post note. Queue badge on MainScreen drives navigation here.
+- **InboxScreen** — open to all tiers (tier gate removed for testing). Pulls comments on the user's own posts via Apify. Skips posts where the user already replied (checks `latestComments` for the user's own handle). Shows a two-phase progress bar while loading. Generates 3 brand-voice reply options per comment. Copies reply and auto-opens Instagram.
 - **OnboardingScreen** — 7-step flow: account type → IG handle → hashtags → reference URLs → voice sliders → preview → Apple Sign In / name+email. Steps 1, 3, 4, 5, 6 have skip links ("Use default", "I'll add these later", "Use defaults", "I'll see it in action"). Steps 2 and 7 are required. Distinguishes private accounts from bad handles.
 - **WelcomeScreen** — 3 text-only slides. Last slide shows "Get Started" (→ OnboardingScreen) and "Skip and explore" (→ skip-and-explore flow). Earlier slides show "Next" only.
-- **SettingsScreen** — profile editing, tier upgrades, daily goal selector (5/10/15/20), voice slider editing, hashtag management, reference URL management. Shows "Complete your profile" banner when `skippedOnboarding` is true. Log Out button at bottom resets all state.
-- **ReportingScreen** — read-only stats: comment counts, usage bar, voice DNA word cloud, recent comment history, engaged accounts list.
+- **SettingsScreen** — profile editing, tier upgrades, daily goal selector (5/10/15/20), voice slider editing (track+fill+dot style identical to OnboardingScreen), hashtag management, reference URL management. Shows "Complete your profile" banner when `skippedOnboarding` is true. Log Out button at bottom clears AsyncStorage (`userEmail`, `ratingPromptShown`) and resets all state. Saving with a non-empty `igHandle` also clears `skippedOnboarding`.
+- **ReportingScreen** — read-only stats: today/this week/this month (monthly `commentCount`) comment counts, monthly usage bar, Voice DNA word chips (top 5 words from selected comments), recent comment history with Instagram links, engaged accounts list.
 
 **`lib/supabase.js`** — all database I/O. Tables: `users`, `comment_history`, `commented_posts`, `engaged_accounts`, `discovery_cache`, `feedback`, `error_logs`. Functions follow a consistent pattern: upsert for creates/updates, return `null` on error rather than throwing. Key functions:
 - `saveGoalProgress(userId, { streak, lastGoalDate })` — updates streak/date only, does not touch other profile fields
@@ -103,9 +103,9 @@ All tables have RLS enabled with anon-insert policies where writes are needed fr
 Apple takes 30% of subscription revenue — factor this into any pricing changes.
 
 **`selectComment` pattern differs by screen:**
-- **MainScreen**: copies → 1s "Copied!" → clears state → auto-opens Instagram via `Linking.openURL`. No alert popups.
+- **MainScreen**: `url` captured as first line before any state changes → copies → 1s "Copied!" → clears state → `Linking.openURL(url).catch(→ instagram://)`. No alert popups.
 - **DiscoverScreen**: copies → calls `addToQueue(item)` → 1s "✓ Added to queue!" → clears back to post list. Does NOT open Instagram. User posts from QueueScreen.
-- **InboxScreen**: copies → 1s "Copied!" → clears back to inbox → auto-opens Instagram.
+- **InboxScreen** (`selectReply`): copies → 1s "Copied! Opening Instagram..." → clears reply view → auto-opens Instagram via `selectedItem.postUrl`.
 
 **Comment queue** (`commentQueue` in App.js): in-memory array, not persisted to Supabase. Resets when app is killed. Each item: `{ id, postUrl, username, caption, comment, done }`. `addToQueue(item)` prepends; `markQueueDone(id)` filters out. Passed to `DiscoverScreen` (write) and `QueueScreen` (read + done).
 
@@ -116,13 +116,15 @@ Apple takes 30% of subscription revenue — factor this into any pricing changes
 - Never promotional
 - Makes people curious about the commenter
 
-**Discovery** fetches the top 3 hashtags (by frequency, already sorted) in parallel via `Promise.all` instead of sequentially. Cache key uses `slice(0, 3)` — if you change this, existing caches will be invalidated (which is fine). Loading shows a two-phase progress bar: "Searching your communities..." (0→80% over ~9s via `setInterval`) then "Filtering the best posts..." (100%) before clearing.
+**Discovery** fetches the top 3 hashtags (by frequency, already sorted) in parallel via `Promise.all` instead of sequentially. Cache key: `today:tag1,tag2,tag3` where tags are `slice(0, 3).sort()` — sorted so cache hits regardless of hashtag order. If you change `slice(0, 3)` or remove `.sort()`, existing caches will be invalidated (which is fine). Loading shows a two-phase progress bar: "Searching your communities..." (0→80% over ~9s via `setInterval`) then "Filtering the best posts..." (100%) before clearing. Session limit alert includes "Upgrade" → Settings and "OK".
 
 **Discovery filters**: 50–10,000 likes, under 50 comments, accounts under 100K followers (`ownerFollowersCount`), not the user's own posts, not in `commentedPostUrls`. Cache is two-layer: in-memory first, then Supabase (24h TTL). Only a full miss hits Apify and consumes a daily session.
 
 **Daily goals & streaks**: `dailyGoal` (5/10/15/20, default 10) is set in Settings and saved to `users.daily_goal`. `todayCommentCount` is computed from history on startup and incremented live. When `todayCommentCount >= dailyGoal` for the first time today, `streak` increments (or resets to 1 if yesterday's goal wasn't hit). Streak is saved via `saveGoalProgress()` — not through `saveUser()` — to avoid overwriting it during profile edits. On startup, if `lastGoalDate` is older than yesterday, streak is reset to 0.
 
-**App Store rating prompt**: shown once ever (gated by `AsyncStorage('ratingPromptShown')`) after the user's 10th all-time comment. Checked both on startup (if `history.length >= 10`) and in `handleCommentUsed` (if `commentHistory.length + 1 >= 10`). Opens `APP_STORE_URL` constant in `App.js` — **replace the placeholder ID (`0000000000`) with the real App Store ID after first submission**.
+**App Store rating prompt**: shown once ever (gated by `AsyncStorage('ratingPromptShown')`) after the user's 10th all-time comment. Checked both on startup (if `history.length >= 10`) and in `handleCommentUsed` (if `commentHistory.length + 1 >= 10`). Opens `APP_STORE_URL` constant in `App.js` — **replace the placeholder ID (`0000000000`) with the real App Store ID after first submission**. Log Out clears `ratingPromptShown` so the prompt can appear again after re-onboarding.
+
+**Apple Sign In**: `expo-apple-authentication` is installed. `app.json` has `usesAppleSignIn: true` under `ios` — this is required for EAS to add the `com.apple.developer.applesignin` entitlement to the provisioning profile. Adding this entitlement requires an interactive EAS build (not `--non-interactive`) the first time so it can authenticate with Apple and regenerate the profile. OnboardingScreen step 7 uses `AppleAuthentication.isAvailableAsync()` to detect support, shows the Apple button when available, falls back to manual name/email form otherwise. Apple only returns `email` on first sign-in; if it's absent, falls back to manual form pre-filled with name.
 
 **Error handling**: all Apify/Anthropic catch blocks classify errors as `network` (message contains "Network request failed" / "Failed to fetch") or `api`. Network errors show "Check your internet connection and try again." Apify failures show "Instagram is being difficult right now. Try again in a minute." Anthropic failures show "Our comment engine is taking a break. Try again shortly." All errors are logged to `error_logs` via `logError()`.
 

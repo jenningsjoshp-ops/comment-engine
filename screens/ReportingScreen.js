@@ -66,7 +66,7 @@ export default function ReportingScreen({ navigation, commentHistory, commentCou
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>{commentCount}</Text>
-              <Text style={styles.statLabel}>Comments Posted</Text>
+              <Text style={styles.statLabel}>This Month</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statNumber}>{todayCount}</Text>
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
   },
- historyMeta: {
+  historyMeta: {
     color: '#666',
     fontSize: 12,
     marginTop: 8,
