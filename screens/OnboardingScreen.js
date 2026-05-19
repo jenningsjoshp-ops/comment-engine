@@ -289,7 +289,18 @@ ${sliderDesc}
 ${igContext}
 ${urlContext}
 
-Generate exactly 1 sample comment for a popular post in this account's niche. STRICT RULES YOU MUST FOLLOW: maximum 2 sentences, NEVER use dashes or em dashes or hyphens between words, sounds like a casual text message not a caption, never promotional, make people curious about the commenter. Return ONLY the comment text, nothing else. Do not use any dashes.`,
+Generate exactly 1 sample Instagram comment for a popular post in this account's niche.
+
+STRICT RULES — violating any of these means the comment is wrong:
+- 1-2 SHORT sentences only. No more.
+- Maximum 20 words total. If it's longer, cut it down.
+- No quotes around the comment.
+- NEVER use dashes, em dashes, or hyphens between words.
+- Sounds like a casual text message, NOT a caption or essay.
+- Never promotional.
+- Makes people curious about the commenter.
+
+Return ONLY the comment text. No explanation, no quotes, no punctuation outside the comment itself.`,
           messages: [
             {
               role: 'user',
@@ -697,26 +708,18 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
               </View>
             )}
             <TouchableOpacity
-              style={styles.button}
+              style={[styles.button, previewLoading && styles.buttonDisabled]}
               onPress={() => setStep(7)}
               disabled={previewLoading}
             >
               <Text style={styles.buttonText}>Looks good</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => {
-                generatePreview();
-              }}
-              style={styles.skipButton}
+              style={[styles.secondaryButton, previewLoading && styles.buttonDisabled]}
+              onPress={generatePreview}
               disabled={previewLoading}
             >
-              <Text style={styles.skipText}>See another one</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setStep(5)} style={styles.skipButton}>
-              <Text style={styles.skipText}>Adjust sliders</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setStep(7)} style={styles.stepSkipButton}>
-              <Text style={styles.stepSkipText}>I'll see it in action</Text>
+              <Text style={styles.secondaryButtonText}>Try another</Text>
             </TouchableOpacity>
           </View>
         );
@@ -1141,6 +1144,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     marginTop: 8,
+  },
+  secondaryButton: {
+    backgroundColor: '#2a2a2a',
+    paddingVertical: 14,
+    paddingHorizontal: 48,
+    borderRadius: 12,
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#4f8ef7',
+  },
+  secondaryButtonText: {
+    color: '#4f8ef7',
+    fontSize: 16,
+    fontWeight: '600',
   },
   previewBox: {
     backgroundColor: '#1a1a1a',
