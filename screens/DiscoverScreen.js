@@ -90,10 +90,34 @@ export default function DiscoverScreen({
   const [completedPosts, setCompletedPosts] = useState([]);
   const [skippedPosts, setSkippedPosts] = useState([]);
   const [discoverError, setDiscoverError] = useState(false);
+  const [searchStats, setSearchStats] = useState(null); // { raw, shown }
   const progressIntervalRef = useRef(null);
 
   const hashtags = userProfile?.hashtags || [];
   const remaining = tierLimit - commentCount;
+
+  // Primary filter — relaxed from original values to surface more posts
+  const applyStrictFilter = (rawPosts) => rawPosts.filter((p) => {
+    const likes = p.likesCount || 0;
+    const commentsCt = p.commentsCount || 0;
+    const followers = p.ownerFollowersCount || 0;
+    const url = p.url || '';
+    const isOwn = p.ownerUsername === userProfile?.igHandle;
+    return (
+      likes >= 10 && likes <= 50000 &&
+      commentsCt < 100 &&
+      (followers === 0 || followers <= 500000) &&
+      url && !isOwn && !commentedPostUrls.includes(url)
+    );
+  });
+
+  // Fallback filter — bare minimum, only filters own posts and already-commented
+  const applyRelaxedFilter = (rawPosts) => rawPosts.filter((p) => {
+    const url = p.url || '';
+    const isOwn = p.ownerUsername === userProfile?.igHandle;
+    const caption = p.caption || p.text || '';
+    return url && !isOwn && !commentedPostUrls.includes(url) && caption.length > 0;
+  });
 
   useEffect(() => {
     if (hashtags.length > 0) discoverPosts();
@@ -142,6 +166,7 @@ export default function DiscoverScreen({
 
   const discoverPosts = async () => {
     setDiscoverError(false);
+    setSearchStats(null);
     const cacheKey = getCacheKey();
 
     // 1. In-memory cache (free, no session consumed)
@@ -169,9 +194,9 @@ export default function DiscoverScreen({
         }
       }
 
-      // 3. Check daily limit before hitting Apify — compute fresh to avoid stale prop/closure
+      // 3. Check daily limit — compute fresh to avoid stale prop/closure
       const today = new Date().toDateString();
-      if (onResetDiscovery) onResetDiscovery(); // reset count if it's a new day
+      if (onResetDiscovery) onResetDiscovery();
       const freshRemaining = (lastDiscoveryDate !== today)
         ? dailyDiscoveryLimit
         : Math.max(0, dailyDiscoveryLimit - discoveryCount);
@@ -187,69 +212,83 @@ export default function DiscoverScreen({
         return;
       }
 
-      // 4. Fetch top 3 hashtags in parallel
-      const tagsToSearch = hashtags.slice(0, 3);
-      const results = await Promise.all(
-        tagsToSearch.map(async (tag) => {
-          try {
-            const response = await fetch(
-              `https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ hashtags: [tag], resultsLimit: 20 }),
-              }
-            );
-            const data = await response.json();
-            return Array.isArray(data) ? data : [];
-          } catch (e) {
-            console.error('Failed to fetch hashtag:', tag, e);
-            return [];
-          }
-        })
-      );
-      const allPosts = results.flat();
+      // 4. Fetch hashtags in batches — expand beyond top 3 if needed to reach 10 posts
+      const MIN_TARGET = 10;
+      const BATCH_SIZE = 3;
+      let allRawPosts = [];
+
+      for (let batchStart = 0; batchStart < hashtags.length; batchStart += BATCH_SIZE) {
+        const tagsToSearch = hashtags.slice(batchStart, batchStart + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          tagsToSearch.map(async (tag) => {
+            try {
+              const response = await fetch(
+                `https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ hashtags: [tag], resultsLimit: 50 }),
+                }
+              );
+              const data = await response.json();
+              return Array.isArray(data) ? data : [];
+            } catch (e) {
+              console.error('Failed to fetch hashtag:', tag, e);
+              return [];
+            }
+          })
+        );
+        allRawPosts = [...allRawPosts, ...batchResults.flat()];
+
+        // Deduplicate by URL and check if we have enough already
+        const deduped = [...new Map(allRawPosts.filter(p => p.url).map(p => [p.url, p])).values()];
+        if (applyStrictFilter(deduped).length >= MIN_TARGET) break;
+        // If there are more hashtags to try, keep going
+      }
+
+      // Deduplicate final raw set
+      const rawPosts = [...new Map(allRawPosts.filter(p => p.url).map(p => [p.url, p])).values()];
+      const rawCount = rawPosts.length;
 
       finishProgress();
 
-      const filtered = allPosts
-        .filter((p) => {
-          const likes = p.likesCount || 0;
-          const commentsCt = p.commentsCount || 0;
-          const followers = p.ownerFollowersCount || 0;
-          const url = p.url || '';
-          const isOwn = p.ownerUsername === userProfile?.igHandle;
-          return (
-            likes >= 50 && likes <= 10000 &&
-            commentsCt < 50 &&
-            (followers === 0 || followers <= 100000) &&
-            url && !isOwn && !commentedPostUrls.includes(url)
-          );
-        })
-        .sort((a, b) => {
-          const aEngaged = engagedAccounts.find((e) => e.username === a.ownerUsername);
-          const bEngaged = engagedAccounts.find((e) => e.username === b.ownerUsername);
-          if (aEngaged && !bEngaged) return -1;
-          if (!aEngaged && bEngaged) return 1;
-          const aRatio = (a.likesCount || 0) / Math.max(a.commentsCount || 1, 1);
-          const bRatio = (b.likesCount || 0) / Math.max(b.commentsCount || 1, 1);
-          return bRatio - aRatio;
-        })
-        .slice(0, 10)
-        .map((p) => ({
-          url: p.url,
-          caption: p.caption || p.text || '',
-          likes: p.likesCount || 0,
-          comments: p.commentsCount || 0,
-          username: p.ownerUsername || '',
-          fullName: p.ownerFullName || '',
-          timestamp: p.timestamp || '',
-          type: p.type || 'Post',
-        }));
+      // 5. Strict filter
+      let filtered = applyStrictFilter(rawPosts);
 
-      setDiscoveryCache((prev) => ({ ...prev, [cacheKey]: filtered }));
-      await saveDiscoveryCache(cacheKey, filtered);
-      setPosts(filtered);
+      // 6. Relaxed fallback if too few — no follower/like minimums, just exclude own + commented
+      if (filtered.length < 5) {
+        const relaxed = applyRelaxedFilter(rawPosts);
+        const strictUrls = new Set(filtered.map(p => p.url));
+        const extra = relaxed.filter(p => !strictUrls.has(p.url));
+        filtered = [...filtered, ...extra];
+      }
+
+      // 7. Sort by prior engagement then engagement ratio
+      const sorted = [...filtered].sort((a, b) => {
+        const aEngaged = engagedAccounts.find((e) => e.username === a.ownerUsername);
+        const bEngaged = engagedAccounts.find((e) => e.username === b.ownerUsername);
+        if (aEngaged && !bEngaged) return -1;
+        if (!aEngaged && bEngaged) return 1;
+        const aRatio = (a.likesCount || 0) / Math.max(a.commentsCount || 1, 1);
+        const bRatio = (b.likesCount || 0) / Math.max(b.commentsCount || 1, 1);
+        return bRatio - aRatio;
+      });
+
+      const finalPosts = sorted.slice(0, 10).map((p) => ({
+        url: p.url,
+        caption: p.caption || p.text || '',
+        likes: p.likesCount || 0,
+        comments: p.commentsCount || 0,
+        username: p.ownerUsername || '',
+        fullName: p.ownerFullName || '',
+        timestamp: p.timestamp || '',
+        type: p.type || 'Post',
+      }));
+
+      setSearchStats({ raw: rawCount, shown: finalPosts.length });
+      setDiscoveryCache((prev) => ({ ...prev, [cacheKey]: finalPosts }));
+      await saveDiscoveryCache(cacheKey, finalPosts);
+      setPosts(finalPosts);
       onDiscoveryUsed();
     } catch (error) {
       setDiscoverError(true);
@@ -457,26 +496,32 @@ Generate exactly 3 different comments for the given post. Each should have a dif
       ) : availablePosts.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>
-            {posts.length > 0 ? "You've gone through them all!" : discoverError ? 'Could not load posts' : 'No posts found'}
+            {posts.length > 0
+              ? "You've gone through all of these!"
+              : discoverError ? 'Could not load posts' : 'No posts found'}
           </Text>
           <Text style={styles.emptySubtitle}>
             {posts.length > 0
-              ? 'Nice work! Come back later for fresh posts.'
+              ? "You've gone through all posts from this search. Tap Search Again for fresh content."
               : discoverError
               ? "Couldn't reach Instagram right now. Check your connection and tap Try Again."
               : hashtags.length === 0
               ? 'Add hashtags in Settings to discover posts.'
-              : 'Try adjusting your hashtags in Settings for better results.'}
+              : 'No matching posts found. Tap Search Again or add more hashtags in Settings.'}
           </Text>
           <TouchableOpacity style={styles.refreshBtn} onPress={discoverPosts}>
             <Text style={styles.refreshBtnText}>
-              {discoverError ? 'Try Again' : posts.length > 0 ? 'Find More Posts' : 'Search Again'}
+              {discoverError ? 'Try Again' : 'Search Again'}
             </Text>
           </TouchableOpacity>
         </View>
       ) : (
         <>
-          <Text style={styles.discoverSubtitle}>{availablePosts.length} posts to comment on</Text>
+          <Text style={styles.discoverSubtitle}>
+            {searchStats
+              ? `Found ${searchStats.raw} posts · showing ${searchStats.shown} best matches`
+              : `${availablePosts.length} posts to comment on`}
+          </Text>
           {availablePosts.map((post) => (
             <TouchableOpacity
               key={post.url}
@@ -497,7 +542,7 @@ Generate exactly 3 different comments for the given post. Each should have a dif
             </TouchableOpacity>
           ))}
           <TouchableOpacity style={styles.refreshBtn} onPress={discoverPosts}>
-            <Text style={styles.refreshBtnText}>Refresh Posts</Text>
+            <Text style={styles.refreshBtnText}>Search Again</Text>
           </TouchableOpacity>
         </>
       )}
