@@ -77,7 +77,7 @@ export default function WelcomeScreen({ onComplete, onSkipAndExplore }) {
 
         {isLastSlide && (
           <TouchableOpacity style={styles.skipButton} onPress={onSkipAndExplore}>
-            <Text style={styles.skipText}>Skip and explore</Text>
+            <Text style={styles.skipText}>Try it first</Text>
           </TouchableOpacity>
         )}
       </View>

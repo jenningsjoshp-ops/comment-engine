@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,15 +29,38 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
   const [hashtags, setHashtags] = useState(userProfile?.hashtags || []);
   const [customHashtag, setCustomHashtag] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [urls, setUrls] = useState(() => {
     const existing = Object.keys(userProfile?.referenceUrls || {});
     return existing.length > 0 ? existing : [''];
   });
 
+  const dirtyRef = useRef(false);
+  const savedRef = useRef(false);
+  const markDirty = () => { dirtyRef.current = true; };
+
+  // Unsaved-changes guard
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (savedRef.current || !dirtyRef.current) return;
+      e.preventDefault();
+      Alert.alert(
+        'Unsaved changes',
+        'Leave without saving?',
+        [
+          { text: 'Keep editing', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: () => navigation.dispatch(e.data.action) },
+        ]
+      );
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const sliders = userProfile?.sliders || [];
 
   const setSlider = (id, value) => {
     setSliderValues((prev) => ({ ...prev, [id]: value }));
+    markDirty();
   };
 
   const getSliderLabel = (slider, value) => {
@@ -64,16 +87,19 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
     const updated = urls.filter((_, i) => i !== index);
     if (updated.length === 0) updated.push('');
     setUrls(updated);
+    markDirty();
   };
 
   const removeHashtag = (tag) => {
     setHashtags((prev) => prev.filter((t) => t !== tag));
+    markDirty();
   };
 
   const addHashtag = () => {
     const clean = customHashtag.toLowerCase().replace('#', '').trim();
     if (clean.length > 2 && !hashtags.includes(clean)) {
       setHashtags((prev) => [...prev, clean]);
+      markDirty();
     }
     setCustomHashtag('');
   };
@@ -165,7 +191,7 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
   };
 
   const handleSave = async () => {
-    if (!isValidEmail(email)) {
+    if (email && !isValidEmail(email)) {
       Alert.alert('Invalid email', 'Please enter a valid email address.');
       return;
     }
@@ -198,7 +224,9 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
       dailyGoal: goalValue,
     });
 
-    navigation.goBack();
+    savedRef.current = true;
+    setSaved(true);
+    setTimeout(() => navigation.goBack(), 900);
   };
 
   const handleLogOut = () => {
@@ -237,11 +265,14 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
       </View>
 
       {skippedOnboarding && (
-        <TouchableOpacity style={styles.onboardingBanner} onPress={onSetUpNow}>
+        <View style={styles.onboardingBanner}>
           <Text style={styles.onboardingBannerText}>
-            Complete your profile for better comments →
+            Add your Instagram handle below for personalized comments
           </Text>
-        </TouchableOpacity>
+          <Text style={styles.onboardingBannerSub}>
+            Filling in your handle, hashtags, and voice sliders improves comment quality.
+          </Text>
+        </View>
       )}
 
       <Text style={styles.sectionTitle}>Your Plan</Text>
@@ -280,15 +311,15 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
       <TextInput
         style={styles.input}
         value={name}
-        onChangeText={setName}
+        onChangeText={(v) => { setName(v); markDirty(); }}
         placeholderTextColor="#666"
       />
 
       <Text style={styles.label}>Email</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, email && !isValidEmail(email) && { borderColor: '#ff4444' }]}
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(v) => { setEmail(v); markDirty(); }}
         autoCapitalize="none"
         keyboardType="email-address"
         placeholderTextColor="#666"
@@ -300,7 +331,7 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
         <TextInput
           style={styles.handleInput}
           value={igHandle}
-          onChangeText={(val) => setIgHandle(val.replace('@', ''))}
+          onChangeText={(val) => { setIgHandle(val.replace('@', '')); markDirty(); }}
           autoCapitalize="none"
           placeholderTextColor="#666"
         />
@@ -367,7 +398,7 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
             placeholder="https://yoursite.com"
             placeholderTextColor="#666"
             value={url}
-            onChangeText={(val) => updateUrl(index, val)}
+            onChangeText={(val) => { updateUrl(index, val); markDirty(); }}
             autoCapitalize="none"
             keyboardType="url"
           />
@@ -393,7 +424,7 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
           <TouchableOpacity
             key={opt}
             style={[styles.goalOption, goalValue === opt && styles.goalOptionSelected]}
-            onPress={() => setGoalValue(opt)}
+            onPress={() => { setGoalValue(opt); markDirty(); }}
           >
             <Text style={[styles.goalOptionText, goalValue === opt && styles.goalOptionTextSelected]}>
               {opt}
@@ -444,8 +475,12 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
         </View>
       ))}
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>Save Changes</Text>
+      <TouchableOpacity
+        style={[styles.saveButton, saved && styles.saveButtonSaved, (email && !isValidEmail(email)) && styles.saveButtonDisabled]}
+        onPress={handleSave}
+        disabled={saved || !!(email && !isValidEmail(email))}
+      >
+        <Text style={styles.saveButtonText}>{saved ? '✓ Saved!' : 'Save Changes'}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.logOutButton} onPress={handleLogOut}>
@@ -776,6 +811,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 12,
   },
+  saveButtonSaved: {
+    backgroundColor: '#2d7a2d',
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#333',
+  },
   saveButtonText: {
     color: '#fff',
     fontSize: 18,
@@ -793,6 +834,12 @@ const styles = StyleSheet.create({
     color: '#4f8ef7',
     fontSize: 15,
     fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  onboardingBannerSub: {
+    color: '#7aabf0',
+    fontSize: 12,
     textAlign: 'center',
   },
   logOutButton: {

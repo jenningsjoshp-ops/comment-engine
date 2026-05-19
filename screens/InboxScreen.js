@@ -250,6 +250,30 @@ Generate exactly 3 different reply options to the comment below. Each should hav
     }, 1000);
   };
 
+  // No handle — explain and link to Settings
+  if (!userProfile?.igHandle) {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Reply Inbox</Text>
+          <View style={{ width: 50 }} />
+        </View>
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Instagram not connected</Text>
+          <Text style={styles.emptySubtitle}>
+            Add your Instagram handle in Settings to see comments on your posts.
+          </Text>
+          <TouchableOpacity style={styles.regenButton} onPress={() => navigation.navigate('Settings')}>
+            <Text style={styles.regenButtonText}>Go to Settings</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
+
   // Reply view
   if (selectedItem && (replies.length > 0 || generatingReplies)) {
     return (

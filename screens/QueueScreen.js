@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, Alert,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
@@ -13,7 +13,9 @@ export default function QueueScreen({ navigation, queue, onDone }) {
   };
 
   const handleOpen = (item) => {
-    Linking.openURL(item.postUrl || 'instagram://');
+    Linking.openURL(item.postUrl || 'instagram://').catch(() =>
+      Alert.alert("Couldn't open Instagram", 'Make sure Instagram is installed and try again.')
+    );
   };
 
   return (

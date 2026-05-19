@@ -5,7 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-   Linking,
+  Linking,
+  Alert,
 } from 'react-native';
 
 export default function ReportingScreen({ navigation, commentHistory, commentCount, tier, tierLimit, engagedAccounts = [] }) {
@@ -102,31 +103,37 @@ export default function ReportingScreen({ navigation, commentHistory, commentCou
             </View>
           </View>
 
-          {topWords.length > 0 && (
-            <View style={styles.insightSection}>
-              <Text style={styles.sectionTitle}>Your Voice DNA</Text>
-              <Text style={styles.insightSubtitle}>Words that show up most in your picks</Text>
-              <View style={styles.wordCloud}>
-                {topWords.map((word) => (
-                  <View key={word} style={styles.wordChip}>
-                    <Text style={styles.wordText}>{word}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
+          <View style={styles.insightSection}>
+            <Text style={styles.sectionTitle}>Your Voice DNA</Text>
+            {topWords.length > 0 ? (
+              <>
+                <Text style={styles.insightSubtitle}>Words that show up most in your picks</Text>
+                <View style={styles.wordCloud}>
+                  {topWords.map((word) => (
+                    <View key={word} style={styles.wordChip}>
+                      <Text style={styles.wordText}>{word}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <Text style={styles.emptyHint}>Generate 5+ comments to see your voice patterns here</Text>
+            )}
+          </View>
 
-          {engagedAccounts.length > 0 && (
-            <View style={styles.historySection}>
-              <Text style={styles.sectionTitle}>Accounts You Engage With</Text>
-              {engagedAccounts.slice(0, 10).map((acct) => (
+          <View style={styles.historySection}>
+            <Text style={styles.sectionTitle}>Accounts You Engage With</Text>
+            {engagedAccounts.length > 0 ? (
+              engagedAccounts.slice(0, 10).map((acct) => (
                 <View key={acct.username} style={styles.accountRow}>
                   <Text style={styles.accountUsername}>@{acct.username}</Text>
                   <Text style={styles.accountCount}>{acct.count} comment{acct.count !== 1 ? 's' : ''}</Text>
                 </View>
-              ))}
-            </View>
-          )}
+              ))
+            ) : (
+              <Text style={styles.emptyHint}>Start commenting on posts to track your top accounts here</Text>
+            )}
+          </View>
 
           <View style={styles.historySection}>
             <Text style={styles.sectionTitle}>Recent Comments</Text>
@@ -138,7 +145,11 @@ export default function ReportingScreen({ navigation, commentHistory, commentCou
                 {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
               {entry.url ? (
-                <TouchableOpacity onPress={() => Linking.openURL(entry.url)}>
+                <TouchableOpacity onPress={() =>
+                  Linking.openURL(entry.url).catch(() =>
+                    Alert.alert("Couldn't open post", 'The post link may no longer be available.')
+                  )
+                }>
                   <Text style={styles.historyLink}>View post on Instagram</Text>
                 </TouchableOpacity>
               ) : null}
@@ -317,6 +328,13 @@ const styles = StyleSheet.create({
     color: '#4f8ef7',
     fontSize: 13,
     marginTop: 6,
+  },
+  emptyHint: {
+    color: '#555',
+    fontSize: 13,
+    fontStyle: 'italic',
+    paddingVertical: 8,
+    lineHeight: 20,
   },
   accountRow: {
     flexDirection: 'row',

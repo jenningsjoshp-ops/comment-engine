@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -23,23 +24,28 @@ export default function FeedbackScreen({ navigation, userProfile }) {
   const [feedbackType, setFeedbackType] = useState(null);
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     if (!feedbackType || !message.trim()) {
       Alert.alert('Missing info', 'Pick a category and write your message.');
       return;
     }
-
-    await saveFeedback({
-      type: feedbackType,
-      message: message.trim(),
-      user: userProfile?.name || 'Unknown',
-      email: userProfile?.email || 'Unknown',
-      igHandle: userProfile?.igHandle || 'Unknown',
-      tier: userProfile?.accountType || 'Unknown',
-    });
-
-    setSubmitted(true);
+    setSubmitting(true);
+    try {
+      await saveFeedback({
+        type: feedbackType,
+        message: message.trim(),
+        user: userProfile?.name || 'Unknown',
+        email: userProfile?.email || 'Unknown',
+        igHandle: userProfile?.igHandle || 'Unknown',
+        tier: userProfile?.accountType || 'Unknown',
+      });
+      setSubmitted(true);
+    } catch (e) {
+      setSubmitting(false);
+      Alert.alert('Send failed', 'Could not send feedback. Please try again.');
+    }
   };
 
   if (submitted) {
@@ -118,11 +124,13 @@ export default function FeedbackScreen({ navigation, userProfile }) {
         />
 
         <TouchableOpacity
-          style={[styles.button, (!feedbackType || !message.trim()) && styles.buttonDisabled]}
+          style={[styles.button, (!feedbackType || !message.trim() || submitting) && styles.buttonDisabled]}
           onPress={handleSubmit}
-          disabled={!feedbackType || !message.trim()}
+          disabled={!feedbackType || !message.trim() || submitting}
         >
-          <Text style={styles.buttonText}>Send Feedback</Text>
+          {submitting
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.buttonText}>Send Feedback</Text>}
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

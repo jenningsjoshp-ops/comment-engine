@@ -89,6 +89,7 @@ export default function DiscoverScreen({
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [completedPosts, setCompletedPosts] = useState([]);
   const [skippedPosts, setSkippedPosts] = useState([]);
+  const [discoverError, setDiscoverError] = useState(false);
   const progressIntervalRef = useRef(null);
 
   const hashtags = userProfile?.hashtags || [];
@@ -140,6 +141,7 @@ export default function DiscoverScreen({
   };
 
   const discoverPosts = async () => {
+    setDiscoverError(false);
     const cacheKey = getCacheKey();
 
     // 1. In-memory cache (free, no session consumed)
@@ -250,6 +252,7 @@ export default function DiscoverScreen({
       setPosts(filtered);
       onDiscoveryUsed();
     } catch (error) {
+      setDiscoverError(true);
       const isNetwork = error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch');
       Alert.alert(
         isNetwork ? 'Check your internet connection' : 'Instagram is being difficult right now',
@@ -454,20 +457,22 @@ Generate exactly 3 different comments for the given post. Each should have a dif
       ) : availablePosts.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>
-            {posts.length > 0 ? "You've gone through them all!" : 'No posts found'}
+            {posts.length > 0 ? "You've gone through them all!" : discoverError ? 'Could not load posts' : 'No posts found'}
           </Text>
           <Text style={styles.emptySubtitle}>
             {posts.length > 0
               ? 'Nice work! Come back later for fresh posts.'
+              : discoverError
+              ? "Couldn't reach Instagram right now. Check your connection and tap Try Again."
               : hashtags.length === 0
               ? 'Add hashtags in Settings to discover posts.'
               : 'Try adjusting your hashtags in Settings for better results.'}
           </Text>
-          {posts.length > 0 && (
-            <TouchableOpacity style={styles.refreshBtn} onPress={discoverPosts}>
-              <Text style={styles.refreshBtnText}>Find More Posts</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={styles.refreshBtn} onPress={discoverPosts}>
+            <Text style={styles.refreshBtnText}>
+              {discoverError ? 'Try Again' : posts.length > 0 ? 'Find More Posts' : 'Search Again'}
+            </Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <>

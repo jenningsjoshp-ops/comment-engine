@@ -99,7 +99,9 @@ export default function MainScreen({
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [currentCaption, setCurrentCaption] = useState('');
   const [showHelp, setShowHelp] = useState(false);
+  const [justPosted, setJustPosted] = useState(false);
   const acknowledgedDefaultsRef = useRef(false);
+  const justPostedTimerRef = useRef(null);
 
   const remaining = tierLimit - commentCount;
 
@@ -272,6 +274,9 @@ Generate exactly 3 different comments for the given post. Each should have a dif
     setCopiedIndex(index);
     onCommentUsed(comment, comments, currentCaption, url);
     setPostUrl('');
+    if (justPostedTimerRef.current) clearTimeout(justPostedTimerRef.current);
+    setJustPosted(true);
+    justPostedTimerRef.current = setTimeout(() => setJustPosted(false), 8000);
 
     setTimeout(() => {
       setCopiedIndex(null);
@@ -356,7 +361,7 @@ Generate exactly 3 different comments for the given post. Each should have a dif
           }}
         >
           <Text style={styles.inboxButtonText}>Reply to Comments</Text>
-          <Text style={styles.inboxSubtext}>{tier === 'business' ? 'Business' : 'Business only'}</Text>
+          <Text style={styles.inboxSubtext}>AI reply suggestions</Text>
         </TouchableOpacity>
       </View>
 
@@ -373,6 +378,12 @@ Generate exactly 3 different comments for the given post. Each should have a dif
         <Text style={styles.dividerText}>or paste a URL</Text>
         <View style={styles.dividerLine} />
       </View>
+
+      {justPosted && comments.length === 0 && (
+        <View style={styles.postedBanner}>
+          <Text style={styles.postedBannerText}>Comment copied! Ready for the next one?</Text>
+        </View>
+      )}
 
       <View style={styles.urlLabelRow}>
         <Text style={styles.label}>Post URL</Text>
@@ -687,6 +698,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
     textAlign: 'right',
+  },
+  postedBanner: {
+    backgroundColor: '#1a3a1a',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#4caf50',
+  },
+  postedBannerText: {
+    color: '#4caf50',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   feedbackLink: {
     alignItems: 'center',

@@ -94,17 +94,21 @@ export default function OnboardingScreen({ onComplete }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [appleAvailable, setAppleAvailable] = useState(false);
+  const [appleChecking, setAppleChecking] = useState(false);
+  const [appleEmailMissing, setAppleEmailMissing] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
+  const igTimeoutRef = useRef(null);
 
   const getSliders = () =>
     accountType === 'creator' ? CREATOR_SLIDERS : BUSINESS_SLIDERS;
 
   useEffect(() => {
     if (step === 7) {
+      setAppleChecking(true);
       AppleAuthentication.isAvailableAsync()
-        .then(setAppleAvailable)
-        .catch(() => setAppleAvailable(false));
+        .then((available) => { setAppleAvailable(available); setAppleChecking(false); })
+        .catch(() => { setAppleAvailable(false); setAppleChecking(false); });
     }
   }, [step]);
 
@@ -142,8 +146,22 @@ export default function OnboardingScreen({ onComplete }) {
 
   const fetchIgProfile = async () => {
     if (!igHandle.trim()) return;
+    if (igTimeoutRef.current) { clearTimeout(igTimeoutRef.current); igTimeoutRef.current = null; }
     setIgLoading(true);
     setIgError('');
+
+    igTimeoutRef.current = setTimeout(() => {
+      setIgLoading(false);
+      Alert.alert(
+        'This is taking a while',
+        "Instagram is slow right now. You can continue without connecting your account.",
+        [
+          { text: 'Continue without IG', onPress: () => setStep(3) },
+          { text: 'Try again', style: 'cancel', onPress: fetchIgProfile },
+        ]
+      );
+    }, 60000);
+
     try {
       const handle = igHandle.replace('@', '').trim();
       const response = await fetch(
@@ -173,7 +191,7 @@ export default function OnboardingScreen({ onComplete }) {
         setExtractedHashtags(hashtags);
         setSelectedHashtags(hashtags);
       } else if (data && data.length === 0) {
-        setIgError('This account may be private. CommentEngine only works with public profiles.');
+        setIgError('No posts found. This account may be private or have no posts yet. CommentEngine works best with public accounts that have recent posts.');
       } else {
         setIgError('Couldn\'t find that account. Check the spelling and try again.');
       }
@@ -185,6 +203,7 @@ export default function OnboardingScreen({ onComplete }) {
         : 'Instagram is being difficult right now. Try again in a minute.'
       );
     } finally {
+      if (igTimeoutRef.current) { clearTimeout(igTimeoutRef.current); igTimeoutRef.current = null; }
       setIgLoading(false);
     }
   };
@@ -330,8 +349,8 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
       const appleEmail = credential.email || '';
 
       if (!appleEmail) {
-        // Apple only returns email on first sign-in; fall back to manual
         if (appleName) setName(appleName);
+        setAppleEmailMissing(true);
         setShowManualForm(true);
         return;
       }
@@ -405,6 +424,9 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
       case 2:
         return (
           <View style={styles.stepContainer}>
+            <TouchableOpacity onPress={() => setStep(1)} style={styles.backButton}>
+              <Text style={styles.backText}>← Back</Text>
+            </TouchableOpacity>
             <Text style={styles.title}>Your Instagram</Text>
             <Text style={styles.subtitle}>We'll study your last few posts so your comments sound authentic</Text>
             <View style={[styles.handleInputRow, igLoading && styles.inputDisabled]}>
@@ -466,13 +488,20 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
                 <Text style={styles.buttonText}>Next</Text>
               </TouchableOpacity>
             )}
-         
+            {!igData && !igLoading && (
+              <TouchableOpacity onPress={() => setStep(3)} style={styles.stepSkipButton}>
+                <Text style={styles.stepSkipText}>My account is new — skip this step</Text>
+              </TouchableOpacity>
+            )}
           </View>
         );
 
       case 3:
         return (
           <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
+            <TouchableOpacity onPress={() => setStep(2)} style={styles.backButton}>
+              <Text style={styles.backText}>← Back</Text>
+            </TouchableOpacity>
             <Text style={styles.title}>Your Communities</Text>
             <Text style={styles.subtitle}>
               These are the communities where we'll find posts for you to comment on
@@ -535,6 +564,9 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
       case 4:
         return (
           <View style={styles.stepContainer}>
+            <TouchableOpacity onPress={() => setStep(3)} style={styles.backButton}>
+              <Text style={styles.backText}>← Back</Text>
+            </TouchableOpacity>
             <Text style={styles.title}>Reference URLs</Text>
             <Text style={styles.subtitle}>
               Got a website or menu? We'll reference it when writing replies
@@ -587,6 +619,9 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
       case 5:
         return (
           <ScrollView contentContainerStyle={styles.stepContainer} keyboardShouldPersistTaps="handled">
+            <TouchableOpacity onPress={() => setStep(4)} style={styles.backButton}>
+              <Text style={styles.backText}>← Back</Text>
+            </TouchableOpacity>
             <Text style={styles.title}>Set your voice</Text>
             <Text style={styles.subtitle}>Fine-tune how you want to sound</Text>
             {getSliders().map((slider) => (
@@ -639,6 +674,9 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
       case 6:
         return (
           <View style={styles.stepContainer}>
+            <TouchableOpacity onPress={() => setStep(5)} style={styles.backButton}>
+              <Text style={styles.backText}>← Back</Text>
+            </TouchableOpacity>
             <Text style={styles.title}>Here's your voice</Text>
             <Text style={styles.subtitle}>Here's what your comments will sound like</Text>
             {previewLoading ? (
@@ -689,9 +727,14 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
       case 7:
         return (
           <View style={styles.stepContainer}>
+            <TouchableOpacity onPress={() => setStep(6)} style={styles.backButton}>
+              <Text style={styles.backText}>← Back</Text>
+            </TouchableOpacity>
             <Text style={styles.title}>Almost done</Text>
             <Text style={styles.subtitle}>Create your account</Text>
-            {appleAvailable && !showManualForm ? (
+            {appleChecking ? (
+              <ActivityIndicator color="#4f8ef7" style={{ marginVertical: 24 }} />
+            ) : appleAvailable && !showManualForm ? (
               <>
                 {appleLoading ? (
                   <ActivityIndicator color="#4f8ef7" style={{ marginVertical: 20 }} />
@@ -710,6 +753,13 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
               </>
             ) : (
               <>
+                {appleEmailMissing && (
+                  <View style={styles.appleEmailMissingBox}>
+                    <Text style={styles.appleEmailMissingText}>
+                      Apple didn't share your email. Please enter it below.
+                    </Text>
+                  </View>
+                )}
                 <TextInput
                   style={styles.input}
                   placeholder="Your name"
@@ -734,7 +784,7 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
                   <Text style={styles.buttonText}>Start Using CommentEngine</Text>
                 </TouchableOpacity>
                 {appleAvailable && (
-                  <TouchableOpacity onPress={() => setShowManualForm(false)} style={styles.skipButton}>
+                  <TouchableOpacity onPress={() => { setShowManualForm(false); setAppleEmailMissing(false); }} style={styles.skipButton}>
                     <Text style={styles.skipText}>Use Apple Sign In instead</Text>
                   </TouchableOpacity>
                 )}
@@ -931,6 +981,15 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 14,
   },
+  backButton: {
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    padding: 4,
+  },
+  backText: {
+    color: '#4f8ef7',
+    fontSize: 15,
+  },
   stepSkipButton: {
     marginTop: 12,
     padding: 10,
@@ -939,6 +998,21 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: 14,
     textDecorationLine: 'underline',
+  },
+  appleEmailMissingBox: {
+    backgroundColor: '#2a1a0a',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#ffaa00',
+  },
+  appleEmailMissingText: {
+    color: '#ffaa00',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   hashtagGrid: {
     flexDirection: 'row',
