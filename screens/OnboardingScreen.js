@@ -12,6 +12,7 @@ import {
   Animated,
   Alert,
 } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { APIFY_API_TOKEN, ANTHROPIC_API_KEY } from '../config';
 
 function LoadingMessages({ messages }) {
@@ -92,9 +93,20 @@ export default function OnboardingScreen({ onComplete }) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [appleAvailable, setAppleAvailable] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
 
   const getSliders = () =>
     accountType === 'creator' ? CREATOR_SLIDERS : BUSINESS_SLIDERS;
+
+  useEffect(() => {
+    if (step === 7) {
+      AppleAuthentication.isAvailableAsync()
+        .then(setAppleAvailable)
+        .catch(() => setAppleAvailable(false));
+    }
+  }, [step]);
 
   const isValidEmail = (e) => {
     return e.includes('@') && e.includes('.') && e.indexOf('@') < e.lastIndexOf('.');
@@ -282,8 +294,10 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
     }
   };
 
-  const handleComplete = () => {
-    if (!isValidEmail(email)) {
+  const handleComplete = (overrides = {}) => {
+    const finalName = overrides.name !== undefined ? overrides.name : name;
+    const finalEmail = overrides.email !== undefined ? overrides.email : email;
+    if (!isValidEmail(finalEmail)) {
       Alert.alert('Invalid email', 'Please enter a valid email address.');
       return;
     }
@@ -296,9 +310,39 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
       referenceUrls: urlContents,
       sliderValues,
       sliders: getSliders(),
-      name,
-      email,
+      name: finalName,
+      email: finalEmail,
     });
+  };
+
+  const handleAppleSignIn = async () => {
+    setAppleLoading(true);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      const givenName = credential.fullName?.givenName || '';
+      const familyName = credential.fullName?.familyName || '';
+      const appleName = [givenName, familyName].filter(Boolean).join(' ');
+      const appleEmail = credential.email || '';
+
+      if (!appleEmail) {
+        // Apple only returns email on first sign-in; fall back to manual
+        if (appleName) setName(appleName);
+        setShowManualForm(true);
+        return;
+      }
+      handleComplete({ name: appleName, email: appleEmail });
+    } catch (error) {
+      if (error.code !== 'ERR_REQUEST_CANCELED') {
+        setShowManualForm(true);
+      }
+    } finally {
+      setAppleLoading(false);
+    }
   };
 
   const addUrlField = () => {
@@ -624,29 +668,55 @@ Generate exactly 1 sample comment for a popular post in this account's niche. ST
           <View style={styles.stepContainer}>
             <Text style={styles.title}>Almost done</Text>
             <Text style={styles.subtitle}>Create your account</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Your name"
-              placeholderTextColor="#666"
-              value={name}
-              onChangeText={setName}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              placeholderTextColor="#666"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-            <TouchableOpacity
-              style={[styles.button, (!name || !isValidEmail(email)) && styles.buttonDisabled]}
-              onPress={handleComplete}
-              disabled={!name || !isValidEmail(email)}
-            >
-              <Text style={styles.buttonText}>Start Using CommentEngine</Text>
-            </TouchableOpacity>
+            {appleAvailable && !showManualForm ? (
+              <>
+                {appleLoading ? (
+                  <ActivityIndicator color="#4f8ef7" style={{ marginVertical: 20 }} />
+                ) : (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                    cornerRadius={12}
+                    style={styles.appleButton}
+                    onPress={handleAppleSignIn}
+                  />
+                )}
+                <TouchableOpacity onPress={() => setShowManualForm(true)} style={styles.skipButton}>
+                  <Text style={styles.skipText}>Use email instead</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Your name"
+                  placeholderTextColor="#666"
+                  value={name}
+                  onChangeText={setName}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email"
+                  placeholderTextColor="#666"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+                <TouchableOpacity
+                  style={[styles.button, (!name || !isValidEmail(email)) && styles.buttonDisabled]}
+                  onPress={() => handleComplete()}
+                  disabled={!name || !isValidEmail(email)}
+                >
+                  <Text style={styles.buttonText}>Start Using CommentEngine</Text>
+                </TouchableOpacity>
+                {appleAvailable && (
+                  <TouchableOpacity onPress={() => setShowManualForm(false)} style={styles.skipButton}>
+                    <Text style={styles.skipText}>Use Apple Sign In instead</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
           </View>
         );
     }
@@ -985,5 +1055,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     lineHeight: 24,
+  },
+  appleButton: {
+    width: '100%',
+    height: 52,
+    marginBottom: 8,
   },
 });
