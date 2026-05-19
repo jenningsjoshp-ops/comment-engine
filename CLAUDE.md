@@ -15,7 +15,7 @@ npx expo start --android
 # Build for production (iOS)
 NODE_OPTIONS=--use-system-ca eas build --profile production --platform ios
 
-# Submit to App Store
+# Submit to App Store (requires interactive terminal — run with ! prefix in Claude Code)
 NODE_OPTIONS=--use-system-ca eas submit --platform ios
 
 # Check latest build status
