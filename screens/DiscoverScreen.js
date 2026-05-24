@@ -90,6 +90,7 @@ export default function DiscoverScreen({
   const [completedPosts, setCompletedPosts] = useState([]);
   const [skippedPosts, setSkippedPosts] = useState([]);
   const [discoverError, setDiscoverError] = useState(false);
+  const [noNewPosts, setNoNewPosts] = useState(false);
   const [searchStats, setSearchStats] = useState(null); // { raw, shown }
   const progressIntervalRef = useRef(null);
 
@@ -164,13 +165,14 @@ export default function DiscoverScreen({
     setLoadingPhase('');
   };
 
-  const discoverPosts = async () => {
+  const discoverPosts = async (forceFresh = false) => {
     setDiscoverError(false);
+    setNoNewPosts(false);
     setSearchStats(null);
     const cacheKey = getCacheKey();
 
-    // 1. In-memory cache (free, no session consumed)
-    if (discoveryCache[cacheKey]) {
+    // 1. In-memory cache — skipped when user explicitly taps Search Again
+    if (!forceFresh && discoveryCache[cacheKey]) {
       const cached = discoveryCache[cacheKey].filter(
         (p) => !commentedPostUrls.includes(p.url) && !completedPosts.includes(p.url) && !skippedPosts.includes(p.url)
       );
@@ -181,16 +183,18 @@ export default function DiscoverScreen({
     setLoading(true);
 
     try {
-      // 2. Supabase persistent cache
-      const supabaseCached = await loadDiscoveryCache(cacheKey);
-      if (supabaseCached) {
-        const filtered = supabaseCached.filter(
-          (p) => !commentedPostUrls.includes(p.url) && !completedPosts.includes(p.url) && !skippedPosts.includes(p.url)
-        );
-        if (filtered.length > 0) {
-          setDiscoveryCache((prev) => ({ ...prev, [cacheKey]: supabaseCached }));
-          setPosts(filtered);
-          return;
+      // 2. Supabase persistent cache — skipped on explicit Search Again
+      if (!forceFresh) {
+        const supabaseCached = await loadDiscoveryCache(cacheKey);
+        if (supabaseCached) {
+          const filtered = supabaseCached.filter(
+            (p) => !commentedPostUrls.includes(p.url) && !completedPosts.includes(p.url) && !skippedPosts.includes(p.url)
+          );
+          if (filtered.length > 0) {
+            setDiscoveryCache((prev) => ({ ...prev, [cacheKey]: supabaseCached }));
+            setPosts(filtered);
+            return;
+          }
         }
       }
 
@@ -285,11 +289,18 @@ export default function DiscoverScreen({
         type: p.type || 'Post',
       }));
 
-      setSearchStats({ raw: rawCount, shown: finalPosts.length });
-      setDiscoveryCache((prev) => ({ ...prev, [cacheKey]: finalPosts }));
-      await saveDiscoveryCache(cacheKey, finalPosts);
-      setPosts(finalPosts);
-      onDiscoveryUsed();
+      if (finalPosts.length === 0) {
+        // Apify returned posts but all are already commented on — don't cache empty result
+        setNoNewPosts(true);
+        setPosts([]);
+        onDiscoveryUsed();
+      } else {
+        setSearchStats({ raw: rawCount, shown: finalPosts.length });
+        setDiscoveryCache((prev) => ({ ...prev, [cacheKey]: finalPosts }));
+        await saveDiscoveryCache(cacheKey, finalPosts);
+        setPosts(finalPosts);
+        onDiscoveryUsed();
+      }
     } catch (error) {
       setDiscoverError(true);
       const isNetwork = error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch');
@@ -497,24 +508,30 @@ Generate exactly 3 different comments for the given post. Each should have a dif
       ) : availablePosts.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>
-            {posts.length > 0
-              ? "You've gone through all of these!"
-              : discoverError ? 'Could not load posts' : 'No posts found'}
+            {discoverError
+              ? 'Could not load posts'
+              : noNewPosts || posts.length > 0
+              ? "You're all caught up!"
+              : 'No posts found'}
           </Text>
           <Text style={styles.emptySubtitle}>
-            {posts.length > 0
-              ? "You've gone through all posts from this search. Tap Search Again for fresh content."
-              : discoverError
+            {discoverError
               ? "Couldn't reach Instagram right now. Check your connection and tap Try Again."
+              : noNewPosts
+              ? "No new posts right now. Try again in a few hours when new content is posted."
+              : posts.length > 0
+              ? "You've gone through all posts from this search. Tap Search Again for fresh content."
               : hashtags.length === 0
               ? 'Add hashtags in Settings to discover posts.'
               : 'No matching posts found. Tap Search Again or add more hashtags in Settings.'}
           </Text>
-          <TouchableOpacity style={styles.refreshBtn} onPress={discoverPosts}>
-            <Text style={styles.refreshBtnText}>
-              {discoverError ? 'Try Again' : 'Search Again'}
-            </Text>
-          </TouchableOpacity>
+          {hashtags.length > 0 && (
+            <TouchableOpacity style={styles.refreshBtn} onPress={() => discoverPosts(true)}>
+              <Text style={styles.refreshBtnText}>
+                {discoverError ? 'Try Again' : 'Search Again'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <>
@@ -542,7 +559,7 @@ Generate exactly 3 different comments for the given post. Each should have a dif
               <Text style={styles.postCardAction}>Tap to generate comments</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity style={styles.refreshBtn} onPress={discoverPosts}>
+          <TouchableOpacity style={styles.refreshBtn} onPress={() => discoverPosts(true)}>
             <Text style={styles.refreshBtnText}>Search Again</Text>
           </TouchableOpacity>
         </>
