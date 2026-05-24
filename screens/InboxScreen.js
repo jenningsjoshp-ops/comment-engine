@@ -206,6 +206,7 @@ Rules:
 - Sounds like a genuine human reply, not a brand template
 - Never promotional or salesy
 - Warm and engaging
+- CRITICAL: NEVER invent or fabricate personal details about the account owner. Do not make up ages, career history, life events, or biographical facts. Only reference details that are explicitly present in the user's posts or profile. If you don't have specific details, keep the reply general and observational. Making up facts about the user is the worst thing you can do.
 
 Generate exactly 3 different reply options to the comment below. Each should have a different tone or angle. Return ONLY a JSON array of 3 strings, no other text.`,
           messages: [{

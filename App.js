@@ -138,6 +138,9 @@ export default function App() {
       if (saved) {
         setUserId(saved.id);
         await AsyncStorage.setItem('userEmail', profile.email);
+        // Reload historically commented posts so Discover filters correctly after logout/re-login
+        const commented = await loadCommentedPosts(saved.id);
+        setCommentedPostUrls(commented);
       }
     } catch (error) {
       console.error('Save user error:', error);

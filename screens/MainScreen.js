@@ -232,6 +232,7 @@ Rules:
 - Sounds like a text not a caption
 - Never promotional
 - Make people curious about the commenter
+- CRITICAL: NEVER invent or fabricate personal details about the commenter. Do not make up ages, career history, life events, or biographical facts. Only reference details that are explicitly present in the user's posts or profile. If you don't have specific details, keep the comment general and observational. Making up facts about the user is the worst thing you can do.
 
 Generate exactly 3 different comments for the given post. Each should have a different angle. Return ONLY a JSON array of 3 strings, no other text.`,
           messages: [

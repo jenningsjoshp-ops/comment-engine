@@ -299,6 +299,7 @@ STRICT RULES — violating any of these means the comment is wrong:
 - Sounds like a casual text message, NOT a caption or essay.
 - Never promotional.
 - Makes people curious about the commenter.
+- CRITICAL: NEVER invent or fabricate personal details about the commenter. Do not make up ages, career history, life events, or biographical facts. Only reference details that are explicitly present in the user's posts or profile. If you don't have specific details, keep the comment general and observational. Making up facts about the user is the worst thing you can do.
 
 Return ONLY the comment text. No explanation, no quotes, no punctuation outside the comment itself.`,
           messages: [

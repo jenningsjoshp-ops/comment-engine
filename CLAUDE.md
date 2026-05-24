@@ -116,10 +116,11 @@ Apple takes 30% of subscription revenue — factor this into any pricing changes
 - Sounds like a text, not a caption
 - Never promotional
 - Makes people curious about the commenter
+- CRITICAL: NEVER invent or fabricate personal details about the commenter. Only reference details explicitly present in the user's posts or profile. (This rule must be present in every system prompt — MainScreen, DiscoverScreen, InboxScreen, OnboardingScreen preview.)
 
 **Discovery** fetches the top 3 hashtags (by frequency, already sorted) in parallel via `Promise.all` instead of sequentially. Cache key: `today:tag1,tag2,tag3` where tags are `slice(0, 3).sort()` — sorted so cache hits regardless of hashtag order. If you change `slice(0, 3)` or remove `.sort()`, existing caches will be invalidated (which is fine). Loading shows a two-phase progress bar: "Searching your communities..." (0→80% over ~9s via `setInterval`) then "Filtering the best posts..." (100%) before clearing. Session limit alert includes "Upgrade" → Settings and "OK".
 
-**Discovery filters**: Primary (strict) pass: 10–50,000 likes, under 100 comments, accounts under 500K followers, not own posts, not in `commentedPostUrls`. If strict pass yields fewer than 5 posts, a relaxed fallback runs that only filters own posts and already-commented posts. `resultsLimit` is 50 per hashtag.
+**Discovery filters**: Primary (strict) pass: 10–50,000 likes, under 100 comments, accounts under 500K followers, not own posts, not in `commentedPostUrls`. If strict pass yields fewer than 5 posts, a relaxed fallback runs that only filters own posts and already-commented posts. `resultsLimit` is 50 per hashtag. `commentedPostUrls` must include ALL historical URLs — `handleOnboardingComplete` in App.js calls `loadCommentedPosts` after saving the user so re-login populates the list correctly (not just session data).
 
 **Discovery abundance**: Fetches hashtags in batches of 3 in parallel, expanding to the next batch if the strict-filtered count is still below 10 posts. Stops early once 10+ posts are found. Deduplicates by URL across batches. Shows "Found X posts · showing Y best matches" after a fresh Apify fetch. Cache is two-layer: in-memory first, then Supabase (24h TTL). Only a full miss hits Apify and consumes a daily session.
 
