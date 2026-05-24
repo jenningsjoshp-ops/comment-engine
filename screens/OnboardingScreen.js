@@ -107,7 +107,14 @@ export default function OnboardingScreen({ onComplete }) {
     if (step === 7) {
       setAppleChecking(true);
       AppleAuthentication.isAvailableAsync()
-        .then((available) => { setAppleAvailable(available); setAppleChecking(false); })
+        .then((available) => {
+          setAppleAvailable(available);
+          setAppleChecking(false);
+          if (available) {
+            // Auto-trigger — skip the idle form entirely when Apple succeeds
+            handleAppleSignIn();
+          }
+        })
         .catch(() => { setAppleAvailable(false); setAppleChecking(false); });
     }
   }, [step]);
