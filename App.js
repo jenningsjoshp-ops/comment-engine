@@ -60,7 +60,9 @@ export default function App() {
   // Skipped onboarding (skip-and-explore flow)
   const [skippedOnboarding, setSkippedOnboarding] = useState(false);
 
-  const tierLimits = { starter: 20, growth: 150, business: 500 };
+  const ADMIN_EMAIL = 'jenningsjoshp@gmail.com';
+  const isAdmin = userProfile?.email === ADMIN_EMAIL;
+  const tierLimits = isAdmin ? { starter: 9999, growth: 9999, business: 9999 } : { starter: 20, growth: 150, business: 500 };
   const discoveryLimits = { starter: 1, growth: 5, business: 999 };
 
   useEffect(() => {
@@ -75,7 +77,7 @@ export default function App() {
         if (profile) {
           setUserProfile(profile);
           setUserId(profile.id);
-          setTier(profile.tier || 'starter');
+          setTier(profile.email === 'jenningsjoshp@gmail.com' ? 'business' : (profile.tier || 'starter'));
           setIsOnboarded(true);
           setShowWelcome(false);
 
@@ -132,6 +134,7 @@ export default function App() {
     setUserProfile(profile);
     setIsOnboarded(true);
     setDailyGoal(profile.dailyGoal || 10);
+    if (profile.email === 'jenningsjoshp@gmail.com') setTier('business');
 
     try {
       const saved = await saveUser(profile);
