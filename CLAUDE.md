@@ -119,6 +119,9 @@ Apple takes 30% of subscription revenue — factor this into any pricing changes
 - Never promotional
 - Makes people curious about the commenter
 - CRITICAL: NEVER invent or fabricate personal details about the commenter. Only reference details explicitly present in the user's posts or profile. (This rule must be present in every system prompt — MainScreen, DiscoverScreen, InboxScreen, OnboardingScreen preview.)
+- Each comment/reply MUST use a completely different sentence structure and opening — never start multiple outputs with similar phrases. Rotate between: questions, personal reactions, humor/self-deprecating, punchy one-liners, calling out something specific in the post.
+- NEVER start with: "The difference between", "Most people", "The thing about", "What people don't realize", "The best part about". These are flagged as overused AI patterns.
+- Five angles to rotate between: (a) funny or self-deprecating (b) genuine question showing curiosity (c) short punchy reaction like a text to a friend (d) relating to own experience without fabricating (e) calling out something specific most people scroll past. InboxScreen replies use: (a) warm direct acknowledgment (b) question that invites conversation (c) punchy reaction.
 
 **Discovery** fetches the top 3 hashtags (by frequency, already sorted) in parallel via `Promise.all` instead of sequentially. Cache key: `today:tag1,tag2,tag3` where tags are `slice(0, 3).sort()` — sorted so cache hits regardless of hashtag order. If you change `slice(0, 3)` or remove `.sort()`, existing caches will be invalidated (which is fine). Loading shows a two-phase progress bar: "Searching your communities..." (0→80% over ~9s via `setInterval`) then "Filtering the best posts..." (100%) before clearing. Session limit alert includes "Upgrade" → Settings and "OK".
 

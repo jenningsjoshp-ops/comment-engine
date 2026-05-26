@@ -233,6 +233,9 @@ Rules:
 - Never promotional
 - Make people curious about the commenter
 - CRITICAL: NEVER invent or fabricate personal details about the commenter. Do not make up ages, career history, life events, or biographical facts. Only reference details that are explicitly present in the user's posts or profile. If you don't have specific details, keep the comment general and observational. Making up facts about the user is the worst thing you can do.
+- Each comment MUST use a completely different sentence structure and opening. NEVER start multiple comments with similar phrases. Vary your openings: use questions, observations, personal reactions, humor, short punchy statements. If one comment starts with a general observation, the next should be a personal reaction, and the third should be a question or humor.
+- NEVER start a comment with: "The difference between", "Most people", "The thing about", "What people don't realize", "The best part about". These are overused AI patterns. Sound human, not like a motivational poster.
+- Rotate between these angles: (a) something funny or self-deprecating (b) a genuine question that shows curiosity (c) a short punchy reaction like you'd text a friend (d) relating it to your own experience without making stuff up (e) calling out something specific in the post that most people would scroll past
 
 Generate exactly 3 different comments for the given post. Each should have a different angle. Return ONLY a JSON array of 3 strings, no other text.`,
           messages: [
