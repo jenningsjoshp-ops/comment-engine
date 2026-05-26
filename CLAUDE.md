@@ -28,7 +28,7 @@ NODE_OPTIONS=--use-system-ca eas build:list --limit 1
 
 > `NODE_OPTIONS=--use-system-ca` is required on this Windows machine for EAS commands to reach Expo's servers — omitting it causes TLS certificate errors.
 
-The `eas-build-pre-install` script (`generate-config.js`) runs automatically before EAS builds to write `config.js` from environment variables (`ANTHROPIC_API_KEY`, `APIFY_API_TOKEN`). For local dev, `config.js` has keys hardcoded directly — do not overwrite it with the generator script manually.
+~~`generate-config.js` has been deleted.~~ API keys are now stored as Supabase Edge Function secrets and never touch the client bundle. `config.js` is an empty stub — do not add keys back to it.
 
 ## Architecture
 
@@ -69,7 +69,14 @@ All state is passed down as props — there is no context or state management li
 - `logError({ screen, action, message, userId })` — fire-and-forget error logging, never throws
 - `saveDiscoveryCache` / `loadDiscoveryCache` — 24h TTL keyed by `today:tag1,tag2,tag3`
 
-**`config.js`** — exports `ANTHROPIC_API_KEY` and `APIFY_API_TOKEN`.
+**`config.js`** — empty stub. Keys removed. Do not add API keys back here.
+
+**`supabase/functions/`** — two Edge Functions deployed to Supabase:
+- `generate-comments` — receives `{ system, message, model?, max_tokens? }`, calls Anthropic API server-side, returns the raw Anthropic response object. Screens access `data.content[0].text` exactly as before.
+- `scrape-instagram` — receives `{ action, params }` where action is `'profile'` | `'post'` | `'hashtag'`. Maps to the right Apify actor and payload, returns the raw Apify array. Called via `supabase.functions.invoke('scrape-instagram', { body: { action, params } })` — `data` is the array directly.
+- Both deployed with `--no-verify-jwt` (anon key suffices; no user JWT required).
+- Secrets `ANTHROPIC_API_KEY` and `APIFY_API_TOKEN` set via Supabase dashboard → Edge Functions → Manage secrets.
+- All screens import `supabase` from `../lib/supabase` for invoke calls — no more direct Anthropic/Apify fetches from the client.
 
 ## Supabase Tables
 
@@ -87,7 +94,7 @@ All tables have RLS enabled with anon-insert policies where writes are needed fr
 
 ## Key Patterns
 
-**AI comment generation** (`MainScreen`, `DiscoverScreen`, `InboxScreen`): All three screens call the Anthropic API directly from the client using `anthropic-dangerous-direct-browser-access: true`. The system prompt is built from `userProfile` fields — `accountType`, `sliders`/`sliderValues`, `igPosts`, and `referenceUrls` — to match the user's voice. The last 10 selected comments are injected as learning context when ≥3 exist.
+**AI comment generation** (`MainScreen`, `DiscoverScreen`, `InboxScreen`): All three screens call `supabase.functions.invoke('generate-comments', { body: { system, message } })`. The system prompt is built client-side from `userProfile` fields — `accountType`, `sliders`/`sliderValues`, `igPosts`, and `referenceUrls` — then sent to the Edge Function which calls Anthropic server-side. The last 10 selected comments are injected as learning context when ≥3 exist. The `anthropic-dangerous-direct-browser-access` header is no longer needed.
 
 **Voice sliders**: `userProfile.sliders` is an array of `{id, left, right}` objects. `userProfile.sliderValues` maps `id → number (1-5)`. Both arrays must stay in sync — when editing sliders in Settings, update both.
 
@@ -145,10 +152,7 @@ Apple takes 30% of subscription revenue — factor this into any pricing changes
 
 ## Git Rules
 
-`config.js` must never be committed — it contains live API keys. If it gets tracked:
-```bash
-git rm --cached config.js
-```
+`config.js` is now an empty stub with no secrets — it is safe to commit but there is no reason to. If it ever gets live keys added back by mistake, remove them and run `git rm --cached config.js`.
 
 If a push is rejected because secrets were detected in history, use the orphan branch approach (rewrite history). Always push with:
 ```bash

@@ -13,7 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { APIFY_API_TOKEN, ANTHROPIC_API_KEY } from '../config';
+import { supabase } from '../lib/supabase';
 
 function LoadingMessages({ messages }) {
   const [index, setIndex] = useState(0);
@@ -171,19 +171,10 @@ export default function OnboardingScreen({ onComplete }) {
 
     try {
       const handle = igHandle.replace('@', '').trim();
-      const response = await fetch(
-        `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            directUrls: [`https://www.instagram.com/${handle}/`],
-            resultsType: 'posts',
-            resultsLimit: 10,
-          }),
-        }
-      );
-      const data = await response.json();
+      const { data, error: scrapeError } = await supabase.functions.invoke('scrape-instagram', {
+        body: { action: 'profile', params: { handle, resultsLimit: 10 } },
+      });
+      if (scrapeError) throw scrapeError;
       if (data && data.length > 0 && data[0].ownerUsername) {
         const posts = data;
         const captions = posts.map((p) => p.caption || p.text || '').filter(Boolean);
@@ -278,16 +269,8 @@ export default function OnboardingScreen({ onComplete }) {
         ? `\nReference content:\n${Object.values(urlContents).filter(Boolean).join('\n---\n')}`
         : '';
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
+      const { data, error: invokeError } = await supabase.functions.invoke('generate-comments', {
+        body: {
           max_tokens: 512,
           system: `You are a comment ghostwriter. Account type: ${accountType}.
 
@@ -309,16 +292,10 @@ STRICT RULES — violating any of these means the comment is wrong:
 - CRITICAL: NEVER invent or fabricate personal details about the commenter. Do not make up ages, career history, life events, or biographical facts. Only reference details that are explicitly present in the user's posts or profile. If you don't have specific details, keep the comment general and observational. Making up facts about the user is the worst thing you can do.
 
 Return ONLY the comment text. No explanation, no quotes, no punctuation outside the comment itself.`,
-          messages: [
-            {
-              role: 'user',
-              content: 'Generate a sample comment that shows what my comments will sound like.',
-            },
-          ],
-        }),
+          message: 'Generate a sample comment that shows what my comments will sound like.',
+        },
       });
-
-      const data = await response.json();
+      if (invokeError) throw invokeError;
       if (!data.content?.[0]?.text) {
         setPreviewComment('Could not generate preview. You can adjust settings later.');
         return;

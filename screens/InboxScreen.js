@@ -4,8 +4,7 @@ import {
   ActivityIndicator, Alert, Animated, Linking,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { ANTHROPIC_API_KEY, APIFY_API_TOKEN } from '../config';
-import { logError } from '../lib/supabase';
+import { supabase, logError } from '../lib/supabase';
 
 function LoadingMessages({ messages }) {
   const [index, setIndex] = useState(0);
@@ -107,19 +106,10 @@ export default function InboxScreen({ navigation, userProfile, tier, selectedCom
     startProgress();
     setLoading(true);
     try {
-      const response = await fetch(
-        `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            directUrls: [`https://www.instagram.com/${handle}/`],
-            resultsType: 'posts',
-            resultsLimit: 10,
-          }),
-        }
-      );
-      const data = await response.json();
+      const { data, error: scrapeError } = await supabase.functions.invoke('scrape-instagram', {
+        body: { action: 'profile', params: { handle, resultsLimit: 10 } },
+      });
+      if (scrapeError) throw scrapeError;
 
       finishProgress();
 
@@ -177,17 +167,8 @@ export default function InboxScreen({ navigation, userProfile, tier, selectedCom
         ? `\nPreviously selected comments (match this style):\n${recentSelections.map((c) => '- ' + c).join('\n')}`
         : '';
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
-          max_tokens: 1024,
+      const { data, error: invokeError } = await supabase.functions.invoke('generate-comments', {
+        body: {
           system: `You are a reply ghostwriter for a ${userProfile?.accountType || 'business'} account on Instagram.
 
 ${userProfile?.igPosts?.length ? 'Our recent posts (for voice matching):\n' + userProfile.igPosts.slice(0, 3).join('\n---\n') : ''}
@@ -212,14 +193,10 @@ Rules:
 - Rotate between these angles: (a) warm and direct acknowledgment (b) a genuine question that invites more conversation (c) a short punchy reaction that feels like a real person texting back
 
 Generate exactly 3 different reply options to the comment below. Each should have a different tone or angle. Return ONLY a JSON array of 3 strings, no other text.`,
-          messages: [{
-            role: 'user',
-            content: `Generate 3 replies to this comment on our post:\n\nComment by @${item.commenter}: "${item.text}"\n\nPost caption: "${item.postCaption}"`,
-          }],
-        }),
+          message: `Generate 3 replies to this comment on our post:\n\nComment by @${item.commenter}: "${item.text}"\n\nPost caption: "${item.postCaption}"`,
+        },
       });
-
-      const data = await response.json();
+      if (invokeError) throw invokeError;
 
       if (!data.content?.[0]?.text) {
         Alert.alert('Our comment engine is taking a break.', 'Try again shortly.');

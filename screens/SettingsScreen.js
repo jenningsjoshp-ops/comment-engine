@@ -23,7 +23,7 @@ function confirmAlert(title, message, onConfirm, confirmText = 'Confirm') {
   ]);
 }
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { APIFY_API_TOKEN } from '../config';
+import { supabase } from '../lib/supabase';
 
 const TIER_INFO = {
   starter: { name: 'Starter', price: '$5/mo', limit: '20 comments/month' },
@@ -124,19 +124,10 @@ export default function SettingsScreen({ navigation, userProfile, onUpdate, tier
 
     setRefreshing(true);
     try {
-      const response = await fetch(
-        `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            directUrls: [`https://www.instagram.com/${handle}/`],
-            resultsType: 'posts',
-            resultsLimit: 10,
-          }),
-        }
-      );
-      const data = await response.json();
+      const { data, error: scrapeError } = await supabase.functions.invoke('scrape-instagram', {
+        body: { action: 'profile', params: { handle, resultsLimit: 10 } },
+      });
+      if (scrapeError) throw scrapeError;
       if (data && data.length > 0) {
         const captions = data.map((p) => p.caption || p.text || '').filter(Boolean);
 

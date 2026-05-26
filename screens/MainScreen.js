@@ -13,8 +13,7 @@ import {
   Modal,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { ANTHROPIC_API_KEY, APIFY_API_TOKEN } from '../config';
-import { logError } from '../lib/supabase';
+import { supabase, logError } from '../lib/supabase';
 
 function LoadingMessages({ messages }) {
   const [index, setIndex] = useState(0);
@@ -107,19 +106,10 @@ export default function MainScreen({
 
   const fetchCaption = async (url) => {
     try {
-      const response = await fetch(
-        `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            directUrls: [url],
-            resultsType: 'posts',
-            resultsLimit: 1,
-          }),
-        }
-      );
-      const data = await response.json();
+      const { data, error: scrapeError } = await supabase.functions.invoke('scrape-instagram', {
+        body: { action: 'post', params: { url } },
+      });
+      if (scrapeError) throw scrapeError;
       if (data && data.length > 0) {
         return data[0].caption || data[0].text || '';
       }
@@ -202,17 +192,8 @@ export default function MainScreen({
         ? `\nThe user has previously selected these comments (learn from their preferences):\n${recentSelections.map((c) => '- ' + c).join('\n')}`
         : '';
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
-          max_tokens: 1024,
+      const { data, error: invokeError } = await supabase.functions.invoke('generate-comments', {
+        body: {
           system: `You are a comment ghostwriter. Account type: ${userProfile?.accountType || 'creator'}.
 
 ${userProfile?.igPosts?.length ? 'Recent posts by this account (use to match voice):\n' + userProfile.igPosts.slice(0, 5).join('\n---\n') : ''}
@@ -238,16 +219,10 @@ Rules:
 - Rotate between these angles: (a) something funny or self-deprecating (b) a genuine question that shows curiosity (c) a short punchy reaction like you'd text a friend (d) relating it to your own experience without making stuff up (e) calling out something specific in the post that most people would scroll past
 
 Generate exactly 3 different comments for the given post. Each should have a different angle. Return ONLY a JSON array of 3 strings, no other text.`,
-          messages: [
-            {
-              role: 'user',
-              content: `Generate 3 comments for this Instagram post:\n\nCaption: ${caption}`,
-            },
-          ],
-        }),
+          message: `Generate 3 comments for this Instagram post:\n\nCaption: ${caption}`,
+        },
       });
-
-      const data = await response.json();
+      if (invokeError) throw invokeError;
 
       if (!data.content || !data.content[0]) {
         Alert.alert('Our comment engine is taking a break.', 'Try again shortly.');
